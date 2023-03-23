@@ -491,7 +491,7 @@ def convert_gt2channel_to_gtrgb(gts):
     exp_mask = (gts[..., 1] >= 0.5).astype(np.float32)
     occ_mask = (gts[..., 0] >= 0.5).astype(np.float32) * exp_mask
     free_mask = (gts[..., 0] < 0.5).astype(np.float32) * exp_mask
-    unk_mask = 1 - exp_mask
+    unk_mask = 1 - exp_mask # 没有被探索的区域就是 unknow
 
     gt_imgs = np.stack(
         [

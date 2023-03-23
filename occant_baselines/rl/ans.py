@@ -74,7 +74,7 @@ class ActiveNeuralSLAMBase(ABC):
     ):
         raise NotImplementedError
 
-    def _process_maps(self, maps, goals=None):
+    def _process_maps(self, maps, goals=None, uncer_maps=None):
         """
         Inputs:
             maps - (bs, 2, M, M) --- 1st channel is prob of obstacle present
@@ -82,9 +82,14 @@ class ActiveNeuralSLAMBase(ABC):
         """
         map_scale = self.mapper.map_config["scale"]
         # Compute a map with ones for obstacles and zeros for the rest
-        obstacle_mask = (maps[:, 0] > self.config.thresh_obstacle) & (
-            maps[:, 1] > self.config.thresh_explored
-        )
+        if uncer_maps is None:
+            obstacle_mask = (maps[:, 0] > self.config.thresh_obstacle) \
+                & (maps[:, 1] > self.config.thresh_explored)
+        else:
+            occ_map = (maps[:, 0] > self.config.thresh_obstacle)
+            obstacle_mask = (maps[:, 0] + 0.5 * uncer_maps * ~occ_map  > self.config.thresh_obstacle) \
+                & ( maps[:, 1] > self.config.thresh_explored)
+            
         final_maps = obstacle_mask.float()  # (bs, M, M)
         # Post-process map based on previously visited locations
         final_maps[self.states["visited_map"] == 1] = 0
@@ -199,6 +204,7 @@ class ActiveNeuralSLAMBase(ABC):
                                   --- 2nd channel is prob of being explored
 
         Sampled random explored locations within a distance d_thresh meters from the agent_pos.
+        在距离 agent 规定范围内随机选取一个探索的位置
         """
         # Crop a small 3m x 3m region around the agent position
         range_xy = int(d_thresh / map_scale)
@@ -214,9 +220,12 @@ class ActiveNeuralSLAMBase(ABC):
             agent_map[1] > self.config.thresh_explored
         )
         valid_locs = torch.nonzero(free_mask)  # (N, 2)
-        if valid_locs.shape[0] == 0:
+        
+        # 如果没有合法的位置就随机选取
+        if valid_locs.shape[0] == 0: 
             rand_x = agent_pos[0] + self._py_rng.randint(-range_xy, range_xy)
             rand_y = agent_pos[1] + self._py_rng.randint(-range_xy, range_xy)
+        # 否则根据每个点到 goal 的距离排序选取
         else:
             goal_x_trans = goal_pos[0] - start_x
             goal_y_trans = goal_pos[1] - start_y
@@ -292,12 +301,15 @@ class ActiveNeuralSLAMBase(ABC):
         rgb_at_t_1 = prev_observations["rgb"]  # (bs, H, W, C)
         depth_at_t_1 = prev_observations["depth"]  # (bs, H, W, 1)
         ego_map_gt_at_t_1 = prev_observations["ego_map_gt"]  # (bs, Hby2, Wby2, 2)
-        pose_at_t_1 = prev_observations["pose"]  # (bs, 3)
+        pose_at_t_1 = prev_observations["pose"]  # (bs, 3) 
+
         rgb_at_t = observations["rgb"]  # (bs, H, W, C)
         depth_at_t = observations["depth"]  # (bs, H, W, 1)
         ego_map_gt_at_t = observations["ego_map_gt"]  # (bs, Hby2, Wby2, 2)
         pose_at_t = observations["pose"]  # (bs, 3)
         action_at_t_1 = observations["prev_actions"]
+
+
         # This happens only for a baseline
         if "ego_map_gt_anticipated" in prev_observations:
             ego_map_gt_anticipated_at_t_1 = prev_observations["ego_map_gt_anticipated"]
@@ -307,6 +319,7 @@ class ActiveNeuralSLAMBase(ABC):
             ego_map_gt_anticipated_at_t = None
         pose_hat_at_t_1 = prev_state_estimates["pose_estimates"]  # (bs, 3)
         map_at_t_1 = prev_state_estimates["map_states"]  # (bs, 2, M, M)
+        uncer_map_at_t_1 = prev_state_estimates["uncer_map_states"]  # todo
         pose_gt_at_t_1 = prev_observations.get("pose_gt", None)
         pose_gt_at_t = observations.get("pose_gt", None)
 
@@ -319,6 +332,7 @@ class ActiveNeuralSLAMBase(ABC):
             "pose_gt_at_t_1": pose_gt_at_t_1,
             "pose_hat_at_t_1": pose_hat_at_t_1,
             "map_at_t_1": map_at_t_1,
+            "uncer_map_at_t_1": uncer_map_at_t_1, # todo
             "rgb_at_t": rgb_at_t,
             "depth_at_t": depth_at_t,
             "ego_map_gt_at_t": ego_map_gt_at_t,
@@ -337,6 +351,7 @@ class ActiveNeuralSLAMBase(ABC):
         sample_goal_flags,
         cache_map=False,
         crop_map_flag=True,
+        uncer_global_map=True,
     ):
         """
         global_map - (bs, 2, V, V) tensor
@@ -362,6 +377,7 @@ class ActiveNeuralSLAMBase(ABC):
             # Crop a SxS region centered around old_center_xy
             # Note: The out-of-bound regions will be zero-padded by default. In this case,
             # since zeros correspond to free-space, that is not a problem.
+            # 这里也有加上地图的中心位置，因此坐标系从头到尾都是以地图中心为原点，向上为 agent 正向
             cropped_global_map = crop_map(
                 global_map_proc.unsqueeze(1), old_center_xy, S
             ).squeeze(
@@ -375,7 +391,7 @@ class ActiveNeuralSLAMBase(ABC):
             S += pad_size * 2
             # Transform to new coordinates
             new_center_xy = torch.ones_like(old_center_xy) * (S / 2)
-            new_agent_map_xy = agent_map_xy + (new_center_xy - old_center_xy)
+            new_agent_map_xy = agent_map_xy + (new_center_xy - old_center_xy) # 这里其实就是按照 x,y 进行平移
             new_goal_map_xy = goal_map_xy + (new_center_xy - old_center_xy)
         else:
             cropped_global_map = global_map_proc  # (bs, M, M)
@@ -420,7 +436,7 @@ class ActiveNeuralSLAMBase(ABC):
     ):
         raise NotImplementedError
 
-    def _compute_dist2localgoal(self, global_map, map_xy, local_goal_xy):
+    def _compute_dist2localgoal(self, global_map, map_xy, local_goal_xy, uncer_global_map=None):
         """
         global_map - (bs, 2, V, V) tensor
         map_xy - (bs, 2) agent's current position on the map
@@ -428,7 +444,7 @@ class ActiveNeuralSLAMBase(ABC):
         """
         sample_goal_flags = [1.0 for _ in range(self.nplanners)]
         plans = self._compute_plans(
-            global_map, map_xy, local_goal_xy, sample_goal_flags
+            global_map, map_xy, local_goal_xy, sample_goal_flags, uncer_global_map=uncer_global_map
         )
         dist2localgoal = []
         # Compute distance to local goal
@@ -491,6 +507,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             "sample_random_explored_timer": None,
             # Global map reward states
             "prev_map_states": None,
+            "prev_uncer_map_states": None,
         }
 
     def act(
@@ -515,6 +532,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
         )
         mapper_outputs = self.mapper(mapper_inputs)
         global_map = mapper_outputs["mt"]
+        uncer_global_map = mapper_outputs["uncer_mt"] if "uncer_mt" in mapper_outputs else None
         global_pose = mapper_outputs["xt_hat"]
         map_xy = convert_world2map(global_pose[:, :2], (M, M), s)
         map_xy = torch.clamp(map_xy, 0, M - 1)
@@ -527,7 +545,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             # Compute state updates
             prev_dist2localgoal = self.states["curr_dist2localgoal"]
             curr_dist2localgoal = self._compute_dist2localgoal(
-                global_map, map_xy, self.states["curr_local_goals"],
+                global_map, map_xy, self.states["curr_local_goals"], uncer_global_map=uncer_global_map
             )
             prev_map_position = self.states["curr_map_position"]
             prev_step_size = (
@@ -600,6 +618,12 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             global_policy_inputs = self._create_global_policy_inputs(
                 global_map, visited_states, self.states["curr_map_position"]
             )
+            if uncer_global_map is not None:
+                global_policy_inputs['uncer_map_at_t'] = uncer_global_map
+
+            # print(global_policy_inputs["map_at_t"].shape)
+            # print(global_policy_inputs["uncer_map_at_t"].shape)
+
             (
                 global_value,
                 global_action,
@@ -623,6 +647,8 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             # Update the current map to prev_map_states in order to facilitate
             # future reward computation.
             self.states["prev_map_states"] = global_map.detach()
+            if uncer_global_map is not None:
+                self.states["prev_uncer_map_states"] = uncer_global_map.detach()
         else:
             global_policy_inputs = None
             global_value = None
@@ -658,15 +684,18 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             ).tolist()
         # Execute planner and compute local goals
         self._compute_plans_and_local_goals(
-            global_map, self.states["curr_map_position"], SAMPLE_LOCAL_GOAL_FLAGS
+            global_map, self.states["curr_map_position"], SAMPLE_LOCAL_GOAL_FLAGS, uncer_global_map=uncer_global_map
         )
         # Update state variables to account for new local goals
         self.states["curr_dist2localgoal"] = self._compute_dist2localgoal(
             global_map,
             self.states["curr_map_position"],
             self.states["curr_local_goals"],
+            uncer_global_map=uncer_global_map
         )
+
         # Sample action with local policy
+        # local mask 是在到达 goal 之后的计算， 0 就是被 mask 的位置
         local_masks = 1 - torch.Tensor(SAMPLE_LOCAL_GOAL_FLAGS).to(device).unsqueeze(1)
         recurrent_hidden_states = prev_state_estimates["recurrent_hidden_states"]
         relative_goals = self._compute_relative_local_goals(global_pose, M, s)
@@ -688,7 +717,9 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             local_action_log_probs,
             recurrent_hidden_states,
         ) = outputs
+
         # If imitation learning is used, also sample the ground-truth action to take
+        # 如果真实地图在 info 里面就计算真实要去位置
         if "gt_global_map" in observations.keys():
             gt_global_map = observations["gt_global_map"]  # (bs, 2, M, M)
             gt_global_pose = observations["pose_gt"]  # (bs, 3)
@@ -707,6 +738,8 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
         state_estimates = {
             "recurrent_hidden_states": recurrent_hidden_states,
             "map_states": mapper_outputs["mt"],
+            "uncer_map_states": uncer_global_map, # todo None if no_use
+            "ego_anticipate_map_pre": mapper_outputs['pt'],
             "visited_states": visited_states,
             "pose_estimates": global_pose,
         }
@@ -878,7 +911,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
         return visited_states
 
     def _compute_plans_and_local_goals(
-        self, global_map, agent_map_xy, SAMPLE_LOCAL_GOAL_FLAGS,
+        self, global_map, agent_map_xy, SAMPLE_LOCAL_GOAL_FLAGS, uncer_global_map=None
     ):
         """
         global_map - (bs, 2, V, V) tensor
@@ -893,6 +926,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             SAMPLE_LOCAL_GOAL_FLAGS,
             cache_map=True,
             crop_map_flag=self.config.crop_map_for_planning,
+            uncer_global_map=uncer_global_map
         )
         # ========================= Sample a local goal =======================
         # Sample a local goal and measure the shortest path distance to that
@@ -904,13 +938,20 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             if SAMPLE_LOCAL_GOAL_FLAGS[i] != 1:
                 continue
             path_x, path_y = plans_xy[i]
+
+            
             # If planning failed, sample random local goal.
             if path_x is None:
+                # print("Path is None! Starting Random Exploration")
                 # Note: This is an expensive call, especially when the map is messy
                 # and planning keeps failing. Call sample_random_explored only after
                 # so many steps elapsed since the last call.
+                
+                # 由于这里用距离目标的随机采样的方式重新启动
+                # 因此花费很贵，所以是经过 random 了 10 遍后才进行
                 if self.config.recovery_heuristic == "random_explored_towards_goal":
                     if self.states["sample_random_explored_timer"][i].item() > 10:
+                        # print("Recovery from goal")
                         goal_x, goal_y = self._sample_random_explored_towards_goal(
                             global_map[i],
                             asnumpy(agent_map_xy[i]).tolist(),
@@ -920,6 +961,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
                         # Reset count
                         self.states["sample_random_explored_timer"][i] = 0
                     else:
+                        # print("Random")
                         goal_x, goal_y = self._sample_random_towards_goal(
                             global_map[i],
                             asnumpy(agent_map_xy[i]).tolist(),
@@ -927,6 +969,8 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
                             s,
                         )
                         goal_x, goal_y = asnumpy(agent_map_xy[i]).tolist()
+                
+                # 直接 random
                 elif self.config.recovery_heuristic == "random_explored":
                     if self.states["sample_random_explored_timer"][i].item() > 10:
                         goal_x, goal_y = self._sample_random_explored(

@@ -85,6 +85,7 @@ def measure_area_seen_performance(map_states, map_scale=1.0, reduction="mean"):
                      regions (1s) and channel 1 representing explored regions (1s)
     """
 
+    # 只是记录真实可探索区域
     bs = map_states.shape[0]
     explored_map = (map_states[:, 1] > 0.5).float()  # (bs, M, M)
     occ_space_map = (map_states[:, 0] > 0.5).float() * explored_map  # (bs, M, M)
@@ -421,14 +422,18 @@ def measure_anticipation_reward(
     Channel 0 - probability of occupied space
     Channel 1 - probability of explored space
     """
+
+    # 预测可探索的地方
     pred_explored_space = pred_maps[:, 1] > 0.5  # (bs, H, W)
     pred_free_space = (pred_maps[:, 0] <= 0.5) & pred_explored_space
     pred_occ_space = (pred_maps[:, 0] > 0.5) & pred_explored_space
 
+    # 真实可探索的地方
     gt_explored_space = gt_maps[:, 1] > 0.5
     gt_free_space = (gt_maps[:, 0] <= 0.5) & gt_explored_space
     gt_occ_space = (gt_maps[:, 0] > 0.5) & gt_explored_space
 
+    # 用真实可探索的地方掩膜不可探索的地方
     if apply_mask:
         pred_free_space = pred_free_space & gt_explored_space
         pred_occ_space = pred_occ_space & gt_explored_space

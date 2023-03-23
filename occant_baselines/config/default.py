@@ -41,8 +41,8 @@ _C.T_EXP = 1000
 _C.LOG_FILE = "train.log"
 _C.SAVE_STATISTICS_FLAG = False
 _C.CHECKPOINT_INTERVAL = 30
-# PointNav specific config
-_C.T_MAX = 500
+# PointNav specific config 
+_C.T_MAX = 500 # PointNav 最长只能走 500 步
 # -----------------------------------------------------------------------------
 # EVAL CONFIG
 # -----------------------------------------------------------------------------
@@ -101,7 +101,7 @@ _C.RL.ANS.forward_action_id = 0
 _C.RL.ANS.left_action_id = 1
 _C.RL.ANS.image_scale_hw = [128, 128]
 _C.RL.ANS.model_path = ""
-_C.RL.ANS.recovery_heuristic = "random_explored_towards_goal"
+_C.RL.ANS.recovery_heuristic = "random_explored_towards_goal" # todo 不清楚含义
 _C.RL.ANS.crop_map_for_planning = True
 # =============================================================================
 # Mapper
@@ -109,7 +109,7 @@ _C.RL.ANS.crop_map_for_planning = True
 _C.RL.ANS.MAPPER = CN()
 _C.RL.ANS.MAPPER.lr = 1e-3
 _C.RL.ANS.MAPPER.eps = 1e-5
-_C.RL.ANS.MAPPER.max_grad_norm = 0.5
+_C.RL.ANS.MAPPER.max_grad_norm = 0.5 # todo 不清楚含义
 _C.RL.ANS.MAPPER.num_mapper_steps = 100  # number of steps per mapper update
 _C.RL.ANS.MAPPER.map_size = 101  # V
 _C.RL.ANS.MAPPER.map_scale = 0.05  # s in meters
@@ -127,8 +127,9 @@ _C.RL.ANS.MAPPER.pose_predictor_inputs = ["ego_map"]
 _C.RL.ANS.MAPPER.n_pose_layers = 1
 _C.RL.ANS.MAPPER.n_ensemble_layers = 1
 _C.RL.ANS.MAPPER.ignore_pose_estimator = False
+_C.RL.ANS.MAPPER.use_uncer = False  
 _C.RL.ANS.MAPPER.label_id = "ego_map_gt_anticipated"
-_C.RL.ANS.MAPPER.use_data_parallel = False
+_C.RL.ANS.MAPPER.use_data_parallel = False # train：True，test：False
 _C.RL.ANS.MAPPER.gpu_ids = []  # Set the GPUs for data parallel if necessary
 _C.RL.ANS.MAPPER.num_update_batches = 50
 _C.RL.ANS.MAPPER.replay_size = 100000
@@ -181,7 +182,7 @@ _C.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION.map_scale = 0.05
 _C.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION.min_depth = 0.0
 _C.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION.max_depth = 10.0
 # Used to truncate inputs that are farther than a certain distance away
-_C.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION.truncate_depth = 3.25
+_C.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION.truncate_depth = 3.25 # 截断超出 3.5m 的区域
 # Field of view of expanded image width
 _C.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION.hfov = 90
 # Field of view of expanded image height (no expansion in height)
@@ -198,8 +199,9 @@ _C.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION.K = 1.0
 # =============================================================================
 _C.RL.ANS.GLOBAL_POLICY = CN()
 _C.RL.ANS.GLOBAL_POLICY.map_size = 240  # global policy input size G
-_C.RL.ANS.GLOBAL_POLICY.use_data_parallel = False  # global policy input size G
-_C.RL.ANS.GLOBAL_POLICY.gpu_ids = []  # global policy input size G
+_C.RL.ANS.GLOBAL_POLICY.use_uncer = False  
+_C.RL.ANS.GLOBAL_POLICY.use_data_parallel = False  
+_C.RL.ANS.GLOBAL_POLICY.gpu_ids = [] 
 # =============================================================================
 # Local policy
 # =============================================================================

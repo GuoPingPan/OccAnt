@@ -286,6 +286,51 @@ class OccAntDepth(BaseModel):
         return outputs
 
 
+class OccAntDepthNIG(BaseModel):
+    """
+    Anticipated using depth projection only.
+    """
+
+    def _create_gp_models(self):
+        gp_cfg = self.config.GP_ANTICIPATION
+
+        # Compute constants
+        nsf = gp_cfg.unet_nsf
+        unet_encoder = UNetEncoder(2, nsf=nsf)
+        unet_decoder = UNetDecoder(4 + (gp_cfg.nclasses - 1), nsf=nsf) # 直接对最后一层的输出通道数进行修改
+        unet_feat_size = nsf * 8
+        self.gp_depth_proj_encoder = unet_encoder
+        self.gp_decoder = unet_decoder
+        self.evidence = nn.Softplus()
+
+    def _normalize_decoder_output(self, x):
+        
+        mu, logv, logalpha, logbeta, explored = torch.split(x, split_size_or_sections=1, dim=1)
+        v = self.evidence(logv)
+        alpha = self.evidence(logalpha) + 1
+        beta = self.evidence(logbeta)
+        explored = self.normalize_channel_1(explored)
+        uncer_map = beta / (v*(alpha-1))
+        return torch.concat([mu, explored], dim=1), torch.concat([v, alpha, beta], dim=1), uncer_map
+
+    def _do_gp_anticipation(self, x):
+        """
+        Inputs:
+            x is a dictionary containing the following keys:
+                'ego_map_gt' - (bs, 2, H, W) input
+        """
+        x_enc = self.gp_depth_proj_encoder(
+            x["ego_map_gt"]
+        )  # dictionary with different outputs
+        x_dec = self.gp_decoder(x_enc)  # (bs, 2, H, W)
+        x_dec, nig_params, uncer_map = self._normalize_decoder_output(x_dec)
+
+        outputs = {"occ_estimate": x_dec, "nig_params": nig_params, "uncer_map": uncer_map}
+
+        return outputs
+
+
+
 class OccAntRGBD(BaseModel):
     """
     Anticipated using rgb and depth projection.
@@ -397,6 +442,8 @@ class OccupancyAnticipator(nn.Module):
             self.main = OccAntRGBD(cfg)
         elif model_type == "occant_ground_truth":
             self.main = OccAntGroundTruth(cfg)
+        elif model_type == "occant_depth_nig":
+            self.main = OccAntDepthNIG(cfg)
         else:
             raise ValueError(f"Invalid model_type {model_type}")
 
@@ -412,3 +459,10 @@ class OccupancyAnticipator(nn.Module):
     @property
     def model_type(self):
         return self._model_type
+
+if __name__ == "__main__":
+    from occant_baselines.config.default import get_config
+    config = get_config('/home/hello/pgp_eai/new/OccupancyAnticipation/configs/model_configs/occant_depth/ppo_exploration_evaluate_noise_free.yaml', None)
+    model = OccAntDepth(config.RL.ANS.OCCUPANCY_ANTICIPATOR)
+    total = sum([param.nelement() for param in model.parameters()])
+    print("Number of model's parameter: %.2fM" % (total / 1e6))

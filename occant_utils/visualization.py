@@ -9,7 +9,8 @@ import math
 import numpy as np
 
 
-EXPLORED_COLOR = (220, 183, 226)
+# EXPLORED_COLOR = (220, 183, 226)
+EXPLORED_COLOR = (12, 131, 239)
 GT_OBSTACLE_COLOR = (204, 204, 204)
 CORRECT_OBSTACLE_COLOR = (51, 102, 0)
 FALSE_OBSTACLE_COLOR = (102, 204, 0)
@@ -64,7 +65,7 @@ def generate_topdown_allocentric_map(
 
     # First show explored regions
     explored_map = pred_coverage_map[1] >= thresh_explored
-    colored_map[explored_map, :] = np.array(EXPLORED_COLOR)
+    colored_map[explored_map, :] = np.array(EXPLORED_COLOR) # 画出探索过的区域
 
     # Show GT obstacles in explored regions
     gt_obstacles_in_explored_map = global_obstacle_map & explored_map
@@ -72,6 +73,7 @@ def generate_topdown_allocentric_map(
 
     # Show correctly predicted obstacles in dark green
     pred_obstacles = (pred_coverage_map[0] >= thresh_obstacle) & explored_map
+    # correct_pred_obstacles = pred_obstacles & gt_obstacles_in_explored_map
     correct_pred_obstacles = pred_obstacles & gt_obstacles_in_explored_map
     colored_map[correct_pred_obstacles, :] = np.array(CORRECT_OBSTACLE_COLOR)
 

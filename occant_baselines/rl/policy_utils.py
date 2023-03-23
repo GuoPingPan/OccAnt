@@ -38,6 +38,8 @@ class OccupancyAnticipationWrapper(nn.Module):
             "ego_map_hat",
             "occ_estimate",
             "depth_proj_estimate",  # specific to RGB Model V2
+            "nig_params", # specific to OccantDepthNIG Model 
+            "uncer_map",  # specific to OccantDepthNIG Model 
         ]
 
     def forward(self, x):
@@ -204,7 +206,7 @@ class PoseEstimator(nn.Module):
             feats = torch.cat(feats, dim=1)
             ensemble_weights = self.ensemble_attention(feats)  # (bs, n)
             stacked_poses = torch.stack(preds, dim=1)  # (bs, n, 3)
-            pose = (ensemble_weights.unsqueeze(2) * stacked_poses).sum(dim=1)
+            pose = (ensemble_weights.unsqueeze(2) * stacked_poses).sum(dim=1) # 进行加权融合
             outputs["pose"] = pose
         else:
             outputs["pose"] = preds[0]

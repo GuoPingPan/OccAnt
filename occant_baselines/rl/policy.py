@@ -43,9 +43,11 @@ class GlobalPolicy(nn.Module):
         super().__init__()
 
         self.G = config.map_size
+        self.use_uncer = config.use_uncer
+        in_channels: int = 10 if self.use_uncer else 8
 
         self.actor = nn.Sequential(  # (8, G, G)
-            nn.Conv2d(8, 8, 3, padding=1),  # (8, G, G)
+            nn.Conv2d(in_channels, 8, 3, padding=1),  # (8, G, G)
             nn.BatchNorm2d(8),
             nn.ReLU(),
             nn.Conv2d(8, 4, 3, padding=1),  # (4, G, G)
@@ -62,7 +64,7 @@ class GlobalPolicy(nn.Module):
         )
 
         self.critic = nn.Sequential(  # (8, G, G)
-            nn.Conv2d(8, 8, 3, padding=1),  # (8, G, G)
+            nn.Conv2d(in_channels, 8, 3, padding=1),  # (8, G, G)
             nn.BatchNorm2d(8),
             nn.ReLU(),
             nn.Conv2d(8, 4, 3, padding=1),  # (4, G, G)
@@ -93,6 +95,9 @@ class GlobalPolicy(nn.Module):
     def _get_h12(self, inputs):
         x = inputs["pose_in_map_at_t"]
         h = inputs["map_at_t"]
+        if self.use_uncer:
+            h_uncer = inputs["uncer_map_at_t"]
+            h = torch.concat([h, h_uncer], dim=1)
 
         h_1 = crop_map(h, x[:, :2], self.G)
         h_2 = F.adaptive_max_pool2d(h, (self.G, self.G))
@@ -205,6 +210,9 @@ class HeuristicLocalPolicy(nn.Module):
         raise NotImplementedError
 
     def act(self, inputs, rnn_hxs, prev_actions, masks, deterministic=False):
+        
+        # 启发式策略直接根据当前 goal 相对于自身的位置进行移动
+        
         goal_xy = inputs["goal_at_t"]
         goal_phi = torch.atan2(goal_xy[:, 1], goal_xy[:, 0])
 
@@ -259,7 +267,15 @@ class Mapper(nn.Module):
         if masks is not None:
             mt_1 = mt_1 * masks.view(-1, 1, 1, 1)
         with torch.no_grad():
-            mt = self._register_map(mt_1, outputs["pt"], outputs["xt_hat"])
+            mt, pre_g = self._register_map(mt_1, outputs["pt"], outputs["xt_hat"]) # 根据当前位姿更新全局地图
+            if "uncer_pt" in outputs:
+                uncer_mt_1 = x["uncer_map_at_t_1"]
+                if masks is not None:
+                    uncer_mt_1 = uncer_mt_1 * masks.view(-1, 1, 1, 1)
+                uncer_mt, _ = self._register_map(uncer_mt_1, outputs["uncer_pt"], outputs["xt_hat"], pre_g[:,1])
+
+                outputs["uncer_mt"] = uncer_mt
+        
         outputs["mt"] = mt
 
         return outputs
@@ -291,7 +307,7 @@ class Mapper(nn.Module):
         pu_inputs_t_1 = {
             "rgb": st_1,
             "depth": dt_1,
-            "ego_map_gt": ego_map_gt_at_t_1,
+            "ego_map_gt": ego_map_gt_at_t_1, # occ depth 投影
             "ego_map_gt_anticipated": ego_map_gt_anticipated_at_t_1,
         }
         pu_inputs_t = {
@@ -303,7 +319,10 @@ class Mapper(nn.Module):
         pu_inputs = self._safe_cat(pu_inputs_t_1, pu_inputs_t)
         pu_outputs = self.projection_unit(pu_inputs)
         pu_outputs_t = {k: v[bs:] for k, v in pu_outputs.items()}
+        
+        # 前一时刻的 anticipate，后一时刻的 anticipate
         pt_1, pt = pu_outputs["occ_estimate"][:bs], pu_outputs["occ_estimate"][bs:]
+
         # Compute relative pose
         dx = subtract_pose(x["pose_at_t_1"], x["pose_at_t"])
         # Estimate pose
@@ -325,8 +344,11 @@ class Mapper(nn.Module):
             if self.config.detach_map:
                 for k in pose_inputs.keys():
                     pose_inputs[k] = pose_inputs[k].detach()
+            
+            
             n_pose_inputs = self._transform_observations(pose_inputs, dx)
-            pose_outputs = self.pose_estimator(n_pose_inputs)
+            pose_outputs = self.pose_estimator(n_pose_inputs) # 多个输入的 pose estimate
+            
             dx_hat = add_pose(dx, pose_outputs["pose"])
             all_pose_outputs["pose_outputs"] = pose_outputs
             # Estimate global pose
@@ -344,6 +366,10 @@ class Mapper(nn.Module):
         }
         if "ego_map_hat" in pu_outputs_t:
             outputs["ego_map_hat_at_t"] = pu_outputs_t["ego_map_hat"]
+        if "nig_params" in pu_outputs:
+            outputs["nig_params"] = pu_outputs_t["nig_params"]
+        if "uncer_map" in pu_outputs:
+            outputs["uncer_pt"] = pu_outputs_t["uncer_map"]
         return outputs
 
     def _bottom_row_spatial_transform(self, p, dx, invert=False):
@@ -395,7 +421,7 @@ class Mapper(nn.Module):
 
         return p_trans
 
-    def _register_map(self, m, p, x):
+    def _register_map(self, m, p, x, explored=None):
         """
         Given the locally computed map, register it to the global map based
         on the current position.
@@ -422,11 +448,12 @@ class Mapper(nn.Module):
         # Register the local map
         p_reg = self._spatial_transform(p_pad, x)
         # Aggregate
-        m_updated = self._aggregate(m, p_reg)
+        m_updated = self._aggregate(m, p_reg, explored)
 
-        return m_updated
+        return m_updated, p_reg
 
-    def _aggregate(self, m, p_reg):
+
+    def _aggregate(self, m, p_reg, explored=None):
         """
         Inputs:
             m - (bs, 2, M, M) - global map
@@ -442,15 +469,22 @@ class Mapper(nn.Module):
             mask = mask.unsqueeze(1)
             m_updated = m * (1 - mask) + p_reg * mask
         elif reg_type == "moving_average":
-            mask_unexplored = (
-                (p_reg[:, 1] <= self.config.thresh_explored).float().unsqueeze(1)
-            )
-            mask_unfilled = (m[:, 1] == 0).float().unsqueeze(1)
+            if explored is None:
+                mask_unexplored = (
+                    (p_reg[:, 1] <= self.config.thresh_explored).float().unsqueeze(1)
+                )
+                mask_unfilled = (m[:, 1] == 0).float().unsqueeze(1)
+            else:
+                mask_unexplored = (
+                    (explored <= self.config.thresh_explored).float().unsqueeze(1)
+                )
+                mask_unfilled = (m == 0).float()
+
             m_ma = p_reg * (1 - beta) + m * beta
             m_updated = (
-                m * mask_unexplored
-                + m_ma * (1.0 - mask_unexplored) * (1.0 - mask_unfilled)
-                + p_reg * (1.0 - mask_unexplored) * mask_unfilled
+                m * mask_unexplored # 注册图没有探索到的地方保持原状
+                + m_ma * (1.0 - mask_unexplored) * (1.0 - mask_unfilled) # 探索到但是原图为0的地方直接加上融合指标 
+                + p_reg * (1.0 - mask_unexplored) * mask_unfilled # 探索到但是原图不为 0 的地方，加上注册的值
             )
         elif reg_type == "entropy_moving_average":
             explored_mask = (p_reg[:, 1] > self.config.thresh_explored).float()

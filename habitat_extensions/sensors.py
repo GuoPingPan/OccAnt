@@ -91,6 +91,7 @@ class GTPoseSensor(Sensor):
 
         agent_position = agent_state.position
 
+        # 将世界坐标下的 agent 转向初始位置坐标下
         agent_position = quaternion_rotate_vector(
             rotation_world_start.inverse(), agent_position - origin
         )
@@ -98,12 +99,14 @@ class GTPoseSensor(Sensor):
         rotation_world_agent = agent_state.rotation
         rotation_world_start = quaternion_from_coeff(episode.start_rotation)
 
+
         agent_heading = self._quat_to_xy_heading(
             rotation_world_agent.inverse() * rotation_world_start
         )
         # This is rotation from -Z to -X. We want -Z to X for this particular sensor.
         agent_heading = -agent_heading
 
+        # z 变成纵轴， -x 变成横轴
         return np.array(
             [-agent_position[2], agent_position[0], agent_heading], dtype=np.float32,
         )
@@ -500,6 +503,8 @@ class GTEgoWallMap(Sensor):
         config: contains the MAP_SCALE, MAP_SIZE, HEIGHT_THRESH fields to
                 decide grid-size, extents of the projection, and the thresholds
                 for determining obstacles and explored space.
+        
+    根据当前 depth 图像获得 wall map
     """
 
     def __init__(self, sim: Simulator, config: Config, *args: Any, **kwargs: Any):
@@ -869,11 +874,11 @@ class GTEgoMapAnticipated(GTEgoMap):
         if self.current_episode_id != episode_id:
             self.current_episode_id = episode_id
             # Transpose to make x rightward and y downward
-            self._top_down_map = self.get_original_map().T
+            self._top_down_map = self.get_original_map().T # top donw 的大小就是根据 resolution 生成的
 
         agent_position = agent_state.position
         agent_rotation = agent_state.rotation
-        a_x, a_y = maps.to_grid(
+        a_x, a_y = maps.to_grid( # 由于这里限制了 map 的大小能够包含所有环境，因此直接计算位置没有问题
             agent_position[0],
             agent_position[2],
             self._coordinate_min,
@@ -882,12 +887,18 @@ class GTEgoMapAnticipated(GTEgoMap):
         )
 
         # Crop region centered around the agent
-        mrange = int(self.map_size * 1.5)
+        # 获得以 agent 为中心的地图
+        # z 为 纵轴， -x 为 横轴， 这里之所以不符合habitat坐标的规律是因为前面对 top_down_map 进行了 tranpose
+        mrange = int(self.map_size * 1.5) # 先扩大
         ego_map = self._top_down_map[
             (a_y - mrange) : (a_y + mrange), (a_x - mrange) : (a_x + mrange)
         ]
         if ego_map.shape[0] == 0 or ego_map.shape[1] == 0:
             ego_map = np.zeros((2 * mrange + 1, 2 * mrange + 1), dtype=np.uint8)
+
+
+        # 这里需要考虑到 agent 自身的位姿和地图的关系
+        # 首先 agent 头是 -z，左边是 -x，同时 agent 的角度向左是右边，此外，自身地图是以 agent 为中心方向向前
 
         # Rotate to get egocentric map
         # Negative since the value returned is clockwise rotation about Y,
@@ -911,7 +922,7 @@ class GTEgoMapAnticipated(GTEgoMap):
             / 255.0
         )
 
-        mrange = int(self.map_size)
+        mrange = int(self.map_size) # 再取旋转后的中心地图
         ego_map = ego_map[
             (half_size - mrange) : (half_size + mrange),
             (half_size - mrange) : (half_size + mrange),
@@ -940,6 +951,8 @@ class GTEgoMapAnticipated(GTEgoMap):
     def _get_grown_depth_projection(self, episode, agent_state, sim_depth):
         projected_occupancy = self._get_depth_projection(sim_depth)
         mesh_occupancy = self._get_mesh_occupancy(episode, agent_state)
+
+        # 区域生长
         grown_map = grow_projected_map(
             projected_occupancy, mesh_occupancy, self._region_growing_iterations,
         )
@@ -949,6 +962,7 @@ class GTEgoMapAnticipated(GTEgoMap):
         agent_state = self._sim.get_agent_state()
         if self.config.GT_TYPE == "grown_occupancy":
             sim_depth = observations["depth"]
+            # 区域生长法
             ego_map_gt_anticipated = self._get_grown_depth_projection(
                 episode, agent_state, sim_depth,
             )

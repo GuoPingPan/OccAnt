@@ -23,6 +23,8 @@ from occant_baselines.rl.policy import MapperDataParallelWrapper
 
 from einops import rearrange
 
+from .uncer_loss import nig_loss_fn
+
 
 def simple_mapping_loss_fn(pt_hat, pt_gt):
     occupied_hat = pt_hat[:, 0]  # (T*N, V, V)
@@ -37,11 +39,22 @@ def simple_mapping_loss_fn(pt_hat, pt_gt):
 
     return mapping_loss
 
+def nig_mapping_loss_fn(pt_hat, pt_gt, nig_params):
+    mu, explored = torch.split(pt_hat, split_size_or_sections=1, dim=1)
+    mu_gt, explored_gt = torch.split(pt_gt, split_size_or_sections=1, dim=1)
+    v, alpha, beta = torch.split(nig_params, split_size_or_sections=1, dim=1)
+
+    explored_mapping_loss = F.binary_cross_entropy(explored, explored_gt)
+    occupied_mapping_loss = nig_loss_fn(mu, alpha, v, beta, mu_gt)
+
+    mapping_loss = explored_mapping_loss + occupied_mapping_loss
+
+    return mapping_loss
 
 def pose_loss_fn(pose_hat, pose_gt):
     trans_loss = F.smooth_l1_loss(pose_hat[:, :2], pose_gt[:, :2])
     rot_loss = F.smooth_l1_loss(pose_hat[:, 2], pose_gt[:, 2])
-    pose_loss = 0.5 * (trans_loss + rot_loss)
+    pose_loss = 0.5 * (trans_loss + 5 * rot_loss)
 
     return pose_loss, trans_loss, rot_loss
 
@@ -103,13 +116,41 @@ class MapUpdateBase(nn.Module):
         src_state_dict = self.state_dict()
         matching_state_dict = {}
         offending_keys = []
+
+        # count = 0
+        # print("=======> load_state_dict")
+        # for k, v in loaded_state_dict.items():
+        #     # print(k)
+        #     count+=1
+
+        # print(count)
+
+        # count = 0
+
+        # print("=======> src_state_dict")
+        # for k, v in src_state_dict.items():
+        #     # print(k)
+        #     count+=1
+
+        # print(count)
+
+
+        # exit()
+        # count = 0
         for k, v in loaded_state_dict.items():
             if k in src_state_dict.keys() and v.shape == src_state_dict[k].shape:
                 matching_state_dict[k] = v
+                # count += 1
             else:
+                print(k)
+                print(v.shape, src_state_dict[k].shape)
                 offending_keys.append(k)
         src_state_dict.update(matching_state_dict)
+
+        # exit()
         super().load_state_dict(src_state_dict)
+
+        # print(count)
         if len(offending_keys) > 0:
             print("=======> MapUpdate: list of offending keys in load_state_dict")
             for k in offending_keys:
@@ -145,6 +186,7 @@ def map_update_fn(ps_args):
 
     img_mean = mapper_config.NORMALIZATION.img_mean
     img_std = mapper_config.NORMALIZATION.img_std
+    use_uncer = mapper_config.use_uncer
     start_time = time.time()
     # Debugging
     map_update_profile = {"data_sampling": 0.0, "pytorch_update": 0.0}
@@ -174,9 +216,15 @@ def map_update_fn(ps_args):
         mapper_outputs = mapper(mapper_inputs, method_name="predict_deltas")
         pt_hat = mapper_outputs["pt"]
 
-        # Compute losses
-        # -------- mapping loss ---------
-        mapping_loss = simple_mapping_loss_fn(pt_hat, pt_gt)
+        if use_uncer is None:
+            # Compute losses
+            # -------- mapping loss ---------
+            mapping_loss = simple_mapping_loss_fn(pt_hat, pt_gt)
+        else:
+            nig_params = mapper_outputs["nig_params_at_t"]
+            mapping_loss = nig_mapping_loss_fn(pt_hat, pt_gt, nig_params)
+
+
         if freeze_projection_unit:
             mapping_loss = mapping_loss.detach()
 
@@ -324,6 +372,8 @@ class MapUpdate(MapUpdateBase):
             mapper_cfg, copy.deepcopy(self.mapper.projection_unit),
         )
         self.mapper_copy.load_state_dict(self.mapper.state_dict())
+
+    
         if mapper_cfg.use_data_parallel and len(mapper_cfg.gpu_ids) > 0:
             self.mapper_copy.to(self.mapper.config.gpu_ids[0])
             self.mapper_copy = nn.DataParallel(

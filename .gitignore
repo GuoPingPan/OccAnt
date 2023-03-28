@@ -92,6 +92,7 @@ data
 trained_models
 pretrained_models
 
-environments
+environments/habitat/habitat_api/*
+environments/habitat/habitat_sim/*
 eval_tb
 download

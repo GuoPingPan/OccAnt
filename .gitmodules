@@ -1,9 +1,13 @@
 [submodule "environments/habitat/habitat-api"]
 	path = environments/habitat/habitat-api
-	url = git@github.com:facebookresearch/habitat-lab.git
+	url = git@gitee.com:guopingpan/habitat-lab.git
+	branch = 27483d017210cf710a50ba8061948eab58777202
 [submodule "occant_utils/astar_pycpp"]
 	path = occant_utils/astar_pycpp
-	url = git@github.com:srama2512/astar_pycpp.git
+	url = git@gitee.com:guopingpan/astar_pycpp.git
+    branch = 3a44fcc48fd7f559bae6422c0bf77883b672247b
 [submodule "environments/habitat/habitat-sim"]
 	path = environments/habitat/habitat-sim
-	url = git@github.com:facebookresearch/habitat-sim.git
+	url = git@gitee.com:guopingpan/habitat-sim.git
+    branch = 2689aee121ae8123c3072af820f4c5333df487c2
+

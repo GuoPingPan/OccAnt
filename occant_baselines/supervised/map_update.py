@@ -50,7 +50,7 @@ def nig_mapping_loss_fn(pt_hat, pt_gt, nig_params):
     
     mapping_loss = explored_mapping_loss + occupied_mapping_loss
     # nig_loss_fn.lam += (nig_loss_fn.maxi_rate * (reg_loss - nig_loss_fn.epsilon)).detach()
-    #mapping_loss = explored_mapping_loss
+    # mapping_loss = explored_mapping_loss
     print(mapping_loss)
     return mapping_loss, reg_loss
 

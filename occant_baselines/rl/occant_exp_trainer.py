@@ -107,6 +107,8 @@ class OccAntExpTrainer(BaseRLTrainer):
         config.RL.ANS.MAPPER.thresh_explored = config.RL.ANS.thresh_explored # 探索阈值
         config.RL.ANS.pyt_random_seed = config.PYT_RANDOM_SEED
         config.RL.ANS.OCCUPANCY_ANTICIPATOR.pyt_random_seed = config.PYT_RANDOM_SEED
+
+        # 同步 nig uncertainty
         if config.RL.ANS.OCCUPANCY_ANTICIPATOR.type == "occant_depth_nig":
             assert config.RL.ANS.GLOBAL_POLICY.use_uncer & config.RL.ANS.MAPPER.use_uncer, \
                 "If use `occant_depth_nig`, please set use_uncer for global policy and mapper."
@@ -114,22 +116,26 @@ class OccAntExpTrainer(BaseRLTrainer):
         # Compute the EGO_PROJECTION options based on the
         # depth sensor information and agent parameters.
         map_size = config.RL.ANS.MAPPER.map_size # 65 大小，就是 3.25 m = truncate depth
-        map_scale = config.RL.ANS.MAPPER.map_scale
-        min_depth = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.MIN_DEPTH
-        max_depth = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH
+        map_scale = config.RL.ANS.MAPPER.map_scale # 0.05
+        min_depth = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.MIN_DEPTH # 0.0
+        max_depth = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH # 10.0
 
-        hfov = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.HFOV
-        width = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.WIDTH
-        height = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.HEIGHT
+        hfov = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.HFOV # 90
+        width = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.WIDTH # 128
+        height = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.HEIGHT # 128
+
+        # 计算垂直视场角
         hfov_rad = np.deg2rad(float(hfov))
         vfov_rad = 2 * np.arctan((height / width) * np.tan(hfov_rad / 2.0)) # 假设距离为 1，根据水平角度计算垂直角度
         vfov = np.rad2deg(vfov_rad).item()
-        # habitat/habitat-api/habitat/config/default.py# https://github.com/facebookresearch/habitat-lab/blob/3e3181e5f238814e71ece654db5f46c42fca8825/habitat/config/default.py
+
+        # https://github.com/facebookresearch/habitat-lab/blob/3e3181e5f238814e71ece654db5f46c42fca8825/habitat/config/default.py
         camera_height = config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.POSITION[1] # POSITION = [0, 1.25, 0]
         height_thresholds = [0.2, 1.5]
 
 
         # Set the EGO_PROJECTION options
+        # 根据 MAPPER 的设置来更新 EGO_PROJECTION
         ego_proj_config = config.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION
         ego_proj_config.local_map_shape = (2, map_size, map_size)
         ego_proj_config.map_scale = map_scale
@@ -138,10 +144,11 @@ class OccAntExpTrainer(BaseRLTrainer):
         ego_proj_config.hfov = hfov
         ego_proj_config.vfov = vfov
         ego_proj_config.camera_height = camera_height
-        ego_proj_config.height_thresholds = height_thresholds
+        ego_proj_config.height_thresholds = height_thresholds # 在相机此高度范围内的障碍物才被用于地面映射
         config.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION = ego_proj_config
         
         # Set the GT anticipation options
+        # 根据 MAPPER 的地图大小更新 GT ANTICIPATED 的地图大小
         wall_fov = config.RL.ANS.OCCUPANCY_ANTICIPATOR.GP_ANTICIPATION.wall_fov # 120
         config.TASK_CONFIG.TASK.GT_EGO_MAP_ANTICIPATED.WALL_FOV = wall_fov
         config.TASK_CONFIG.TASK.GT_EGO_MAP_ANTICIPATED.MAP_SIZE = map_size
@@ -174,7 +181,7 @@ class OccAntExpTrainer(BaseRLTrainer):
             )
 
         # Enable GT anticipation sensor for baseline evaluation
-        # 对于真实的 baseline 能够直接使用 真实的 anticipate
+        # 对于真实的 baseline 能够直接使用真实的 anticipate
         if config.RL.ANS.OCCUPANCY_ANTICIPATOR.type == "occant_ground_truth":
             if 'GT_EGO_MAP_ANTICIPATED' not in config.TASK_CONFIG.TASK.SENSORS:
                 config.TASK_CONFIG.TASK.SENSORS.append('GT_EGO_MAP_ANTICIPATED')
@@ -202,7 +209,9 @@ class OccAntExpTrainer(BaseRLTrainer):
         # Create occupancy anticipation model
         occupancy_model = OccupancyAnticipator(occ_cfg)
         occupancy_model = OccupancyAnticipationWrapper(
-            occupancy_model, mapper_cfg.map_size, (128, 128)
+            occupancy_model, mapper_cfg.map_size,
+            (self.config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.HEIGHT,
+             self.config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.WIDTH)
         )
         # Create ANS model
         self.ans_net = ActiveNeuralSLAMExplorer(ans_cfg, occupancy_model)
@@ -233,10 +242,17 @@ class OccAntExpTrainer(BaseRLTrainer):
             batch_size=mapper_cfg.map_batch_size,
             mapper_rollouts=self.mapper_rollouts,
         )
-        # Local policy
-        if ans_cfg.LOCAL_POLICY.use_heuristic_policy: # 启发式策略
+
+        nig_loss_fn = nig_loss_fn.init(
+            lam=self.config.NIG_PARAMS.LAMBDA,
+            epsilon=self.config.NIG_PARAMS.EPSILON,
+            maxi_rate=self.config.NIG_PARAMS.MAX_RATE
+        )
+
+        # Local policy：三种模式
+        if ans_cfg.LOCAL_POLICY.use_heuristic_policy:              # 启发式策略
             self.local_agent = None
-        elif ans_cfg.LOCAL_POLICY.learning_algorithm == "rl":
+        elif ans_cfg.LOCAL_POLICY.learning_algorithm == "rl":      # 强化学习
             self.local_agent = PPO(
                 actor_critic=self.local_actor_critic,
                 clip_param=ppo_cfg.clip_param,
@@ -248,7 +264,7 @@ class OccAntExpTrainer(BaseRLTrainer):
                 eps=ppo_cfg.eps,
                 max_grad_norm=ppo_cfg.max_grad_norm,
             )
-        else:
+        else:                                                       # 模仿学习
             self.local_agent = Imitation(
                 actor_critic=self.local_actor_critic,
                 lr=ppo_cfg.local_policy_lr,
@@ -268,14 +284,12 @@ class OccAntExpTrainer(BaseRLTrainer):
             max_grad_norm=ppo_cfg.max_grad_norm,
         )
 
-        # 并没有在这里进行 load_path，而是用来继续训练的
+        # 并没有在这里进行 load_path，如果特意制定则用来继续训练的
         # print("ans_cfg.model_path: ", ans_cfg.model_path)
         if ans_cfg.model_path != "":
             self.resume_checkpoint(ans_cfg.model_path)
 
-    def save_checkpoint(
-        self, file_name: str, extra_state: Optional[Dict] = None
-    ) -> None:
+    def save_checkpoint(self, file_name: str, extra_state: Optional[Dict] = None) -> None:
         r"""Save checkpoint with specified name.
 
         Args:
@@ -314,8 +328,6 @@ class OccAntExpTrainer(BaseRLTrainer):
         checkpoints = glob.glob(f"{self.config.CHECKPOINT_FOLDER}/*.pth")
         ppo_cfg = self.config.RL.PPO
 
-        # todo: delete
-
         # 如果输入路径为 None，但是 checkpoints 不为空，则加载最新的进行继续训练
         if path is None:
             if len(checkpoints) == 0:
@@ -329,12 +341,15 @@ class OccAntExpTrainer(BaseRLTrainer):
                 # print(checkpoint_path)
                 # Restore checkpoints to models
                 ckpt_dict = self.load_checkpoint(checkpoint_path)
+
+                # todo：删除 del，这里本来只是为了解决权重不对齐问题
                 del ckpt_dict["global_state_dict"]['actor_critic.actor.0.weight']
                 del ckpt_dict["global_state_dict"]['actor_critic.actor.0.bias']
                 del ckpt_dict["global_state_dict"]['actor_critic.critic.0.weight']
                 del ckpt_dict["global_state_dict"]['actor_critic.critic.0.bias']
                 # for k,v in ckpt_dict["global_state_dict"].items():
                 #     print(k)
+
                 self.mapper_agent.load_state_dict(ckpt_dict["mapper_state_dict"])
                 self.local_agent.load_state_dict(ckpt_dict["local_state_dict"])
                 self.global_agent.load_state_dict(ckpt_dict["global_state_dict"], strict=False)
@@ -346,14 +361,24 @@ class OccAntExpTrainer(BaseRLTrainer):
                 num_updates_start = ckpt_dict["extra_state"]["update"] + 1
                 count_steps = ckpt_dict["extra_state"]["step"]
                 count_checkpoints = ckpt_id + 1
+
+                # todo：删除,这里是利用预训练权重的时候重头开始训练
                 num_updates_start = 0
                 count_steps = 0
                 count_checkpoints = 0
+
                 print(f"Resuming checkpoint {last_ckpt} at {count_steps} frames")
         else:
             print(f"Loading pretrained model!")
             # Restore checkpoints to models
             ckpt_dict = self.load_checkpoint(path)
+
+            # todo：删除 del，这里本来只是为了解决权重不对齐问题
+            del ckpt_dict["global_state_dict"]['actor_critic.actor.0.weight']
+            del ckpt_dict["global_state_dict"]['actor_critic.actor.0.bias']
+            del ckpt_dict["global_state_dict"]['actor_critic.critic.0.weight']
+            del ckpt_dict["global_state_dict"]['actor_critic.critic.0.bias']
+
             self.mapper_agent.load_state_dict(ckpt_dict["mapper_state_dict"])
             self.local_agent.load_state_dict(ckpt_dict["local_state_dict"])
             self.global_agent.load_state_dict(ckpt_dict["global_state_dict"])
@@ -371,20 +396,22 @@ class OccAntExpTrainer(BaseRLTrainer):
     ):
         ans_cfg = self.config.RL.ANS
         mapper_rollout_inputs = {
-            "rgb_at_t_1": prev_batch["rgb"],
-            "depth_at_t_1": prev_batch["depth"],
-            "ego_map_gt_at_t_1": prev_batch["ego_map_gt"],
+            "rgb_at_t_1": prev_batch["rgb"], # 128x128
+            "depth_at_t_1": prev_batch["depth"], # 128x128
+            "ego_map_gt_at_t_1": prev_batch["ego_map_gt"], # 65x65
             "pose_at_t_1": prev_batch["pose"],
             "pose_gt_at_t_1": prev_batch["pose_gt"],
+
             "rgb_at_t": batch["rgb"],
             "depth_at_t": batch["depth"],
             "ego_map_gt_at_t": batch["ego_map_gt"],
             "pose_at_t": batch["pose"],
             "pose_gt_at_t": batch["pose_gt"],
-            "ego_map_gt_anticipated_at_t": batch["ego_map_gt_anticipated"],
+
+            "ego_map_gt_anticipated_at_t": batch["ego_map_gt_anticipated"], # 65x65
             "action_at_t_1": batch["prev_actions"],
         }
-        if ans_cfg.OCCUPANCY_ANTICIPATOR.type == "occant_ground_truth":
+        if ans_cfg.OCCUPANCY_ANTICIPATOR.type == "occant_ground_truth": # baseline 直接用 gt anticipate
             mapper_rollout_inputs["ego_map_gt_anticipated_at_t_1"] = prev_batch[
                 "ego_map_gt_anticipated"
             ]
@@ -392,7 +419,7 @@ class OccAntExpTrainer(BaseRLTrainer):
         return mapper_rollout_inputs
 
     def _convert_actions_to_delta(self, actions):
-        """actions -> torch Tensor
+        """actions -> torch Tensor：将 action 转变为对应的连续数值
         """
         sim_cfg = self.config.TASK_CONFIG.SIMULATOR
         delta_xyt = torch.zeros(self.envs.num_envs, 3, device=self.device)
@@ -412,9 +439,10 @@ class OccAntExpTrainer(BaseRLTrainer):
         """
         # 用全局地图计算的奖励
         if self.config.RL.ANS.reward_type == "area_seen":
+            # todo: 这里应该要用预测地图？
             global_reward_metric = measure_area_seen_performance(
                 ground_truth_states["visible_occupancy"], # 可视真实区域
-                reduction="none"
+                reduction="none" # todo: 并没有取均值或和
             )["area_seen"]
         else:
             global_reward_metric = measure_anticipation_reward( 
@@ -441,6 +469,9 @@ class OccAntExpTrainer(BaseRLTrainer):
         running_episode_stats,
         statistics_dict,
     ):
+        '''
+            局部更新，迭代25步
+        '''
         pth_time = 0.0
         env_time = 0.0
 
@@ -1213,7 +1244,7 @@ class OccAntExpTrainer(BaseRLTrainer):
                         (
                             delta_pth_time,
                             update_metrics_mapper,
-                        ) = self._update_mapper_agent(mapper_rollouts)
+                        ) = self. (mapper_rollouts)
 
                         for k, v in update_metrics_mapper.items():
                             statistics_dict["mapper"][k].append(v)
@@ -1373,9 +1404,7 @@ class OccAntExpTrainer(BaseRLTrainer):
                     for k in state_estimates.keys():
                         state_estimates[k].fill_(0)
                     # Update visible occupancy
-                    ground_truth_states[
-                        "visible_occupancy"
-                    ] = self.mapper.ext_register_map(
+                    ground_truth_states["visible_occupancy"], _ = self.mapper.ext_register_map(
                         ground_truth_states["visible_occupancy"],
                         rearrange(batch["ego_map_gt"], "b h w c -> b c h w"),
                         batch["pose_gt"],
@@ -1459,9 +1488,7 @@ class OccAntExpTrainer(BaseRLTrainer):
                 number_of_eval_episodes = total_num_eps
 
         # VectorEnv 当只有一个环境的时候也能用
-        assert (
-            self.envs.num_envs == 1
-        ), "Number of environments needs to be 1 for evaluation"
+        assert (self.envs.num_envs == 1), "Number of environments needs to be 1 for evaluation"
 
         # Set models to evaluation
         self.mapper.eval()
@@ -1502,9 +1529,7 @@ class OccAntExpTrainer(BaseRLTrainer):
                 ),
             }
             ground_truth_states = {
-                "visible_occupancy": torch.zeros(self.envs.num_envs, 2, M, M).to(
-                    self.device
-                ),
+                "visible_occupancy": torch.zeros(self.envs.num_envs, 2, M, M).to(self.device),
                 "pose": torch.zeros(self.envs.num_envs, 3).to(self.device),
                 "environment_layout": None,
             }
@@ -1573,9 +1598,8 @@ class OccAntExpTrainer(BaseRLTrainer):
 
                 # Update GT estimates at t = ep_step
                 ground_truth_states["pose"] = batch["pose_gt"]
-                ground_truth_states[
-                    "visible_occupancy"
-                ] = self.ans_net.mapper.ext_register_map(
+                ground_truth_states["visible_occupancy"], _ = \
+                    self.ans_net.mapper.ext_register_map(  # todo
                     ground_truth_states["visible_occupancy"],
                     batch["ego_map_gt"].permute(0, 3, 1, 2),
                     batch["pose_gt"],

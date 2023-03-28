@@ -9,7 +9,7 @@ TENSORBOARD_DIR: "trained_models/occant_depth_nig/tb"
 VIDEO_DIR: "trained_models/occant_depth_nig/video_dir"
 TEST_EPISODE_COUNT: 2
 # EVAL_CKPT_PATH_DIR: "trained_models/occant_depth_nig/train_noisy_ep0/checkpoints"
-EVAL_CKPT_PATH_DIR: "OccAnt/trained_models/occant_depth_nig/checkpoints"
+EVAL_CKPT_PATH_DIR: "trained_models/occant_depth_nig/checkpoints"
 NUM_PROCESSES: 1
 SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR"]
 CHECKPOINT_FOLDER: "trained_models/occant_depth_nig/checkpoints"

@@ -74,7 +74,7 @@ class ActiveNeuralSLAMBase(ABC):
     ):
         raise NotImplementedError
 
-    def _process_maps(self, maps, goals=None, uncer_maps=None):
+    def _process_maps(self, maps, goals=None, uncer_global_map=None):
         """
         Inputs:
             maps - (bs, 2, M, M) --- 1st channel is prob of obstacle present
@@ -82,12 +82,13 @@ class ActiveNeuralSLAMBase(ABC):
         """
         map_scale = self.mapper.map_config["scale"]
         # Compute a map with ones for obstacles and zeros for the rest
-        if uncer_maps is None:
+        if uncer_global_map is None:
             obstacle_mask = (maps[:, 0] > self.config.thresh_obstacle) \
                 & (maps[:, 1] > self.config.thresh_explored)
-        else:
+        else: # todo
             occ_map = (maps[:, 0] > self.config.thresh_obstacle)
-            obstacle_mask = (maps[:, 0] + 0.5 * uncer_maps * ~occ_map  > self.config.thresh_obstacle) \
+            # 将不确定性考虑进来，有 0.5*uncertainty 的几率取反
+            obstacle_mask = ( (maps[:, 0] + 0.5 * uncer_maps * ~occ_map) > self.config.thresh_obstacle) \
                 & ( maps[:, 1] > self.config.thresh_explored)
             
         final_maps = obstacle_mask.float()  # (bs, M, M)
@@ -317,9 +318,11 @@ class ActiveNeuralSLAMBase(ABC):
         else:
             ego_map_gt_anticipated_at_t_1 = None
             ego_map_gt_anticipated_at_t = None
+
         pose_hat_at_t_1 = prev_state_estimates["pose_estimates"]  # (bs, 3)
         map_at_t_1 = prev_state_estimates["map_states"]  # (bs, 2, M, M)
-        uncer_map_at_t_1 = prev_state_estimates["uncer_map_states"]  # todo
+
+        uncer_map_at_t_1 = prev_state_estimates["uncer_map_states"] # only use in nig
         pose_gt_at_t_1 = prev_observations.get("pose_gt", None)
         pose_gt_at_t = observations.get("pose_gt", None)
 
@@ -332,7 +335,7 @@ class ActiveNeuralSLAMBase(ABC):
             "pose_gt_at_t_1": pose_gt_at_t_1,
             "pose_hat_at_t_1": pose_hat_at_t_1,
             "map_at_t_1": map_at_t_1,
-            "uncer_map_at_t_1": uncer_map_at_t_1, # todo
+            "uncer_map_at_t_1": uncer_map_at_t_1, # only use in nig
             "rgb_at_t": rgb_at_t,
             "depth_at_t": depth_at_t,
             "ego_map_gt_at_t": ego_map_gt_at_t,
@@ -363,7 +366,8 @@ class ActiveNeuralSLAMBase(ABC):
         s = self.mapper.map_config["scale"]
         # Processed map has zeros for free-space and ones for obstacles
         global_map_proc = self._process_maps(
-            global_map, goal_map_xy
+            global_map, goal_map_xy,
+            uncer_global_map=uncer_global_map # todo
         )  # (bs, M, M) tensor
         # =================== Crop a local region around agent, goal ==================
         if crop_map_flag:
@@ -507,7 +511,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             "sample_random_explored_timer": None,
             # Global map reward states
             "prev_map_states": None,
-            "prev_uncer_map_states": None,
+            "prev_uncer_map_states": None, # todo
         }
 
     def act(
@@ -532,7 +536,9 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
         )
         mapper_outputs = self.mapper(mapper_inputs)
         global_map = mapper_outputs["mt"]
+
         uncer_global_map = mapper_outputs["uncer_mt"] if "uncer_mt" in mapper_outputs else None
+
         global_pose = mapper_outputs["xt_hat"]
         map_xy = convert_world2map(global_pose[:, :2], (M, M), s)
         map_xy = torch.clamp(map_xy, 0, M - 1)
@@ -618,6 +624,8 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             global_policy_inputs = self._create_global_policy_inputs(
                 global_map, visited_states, self.states["curr_map_position"]
             )
+
+            # todo：uncertainty map 也作为 global policy 的输入
             if uncer_global_map is not None:
                 global_policy_inputs['uncer_map_at_t'] = uncer_global_map
 

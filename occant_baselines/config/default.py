@@ -258,6 +258,12 @@ _C.RL.ANS.PLANNER.use_weighted_graph = False
 _C.RL.ANS.PLANNER.weight_scale = 4.0
 _C.RL.ANS.PLANNER.weight_niters = 1
 
+# =============================================================================
+# NIG Params
+# =============================================================================
+_C.NIG_PARAMS.LAMBDA = 0.0
+_C.NIG_PARAMS.EPSILON = 1e-2
+_C.NIG_PARAMS.MAX_RATE = 1e-4
 
 def get_config(
     config_paths: Optional[Union[List[str], str]] = None, opts: Optional[list] = None,

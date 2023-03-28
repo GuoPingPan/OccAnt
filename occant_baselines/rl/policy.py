@@ -288,31 +288,27 @@ class Mapper(nn.Module):
         st = process_image(x["rgb_at_t"], self.img_mean_t, self.img_std_t)
         dt = transpose_image(x["depth_at_t"])
         ego_map_gt_at_t = transpose_image(x["ego_map_gt_at_t"])
+
         # This happens only for a baseline
-        if (
-            "ego_map_gt_anticipated_at_t_1" in x
-            and x["ego_map_gt_anticipated_at_t_1"] is not None
-        ):
-            ego_map_gt_anticipated_at_t_1 = transpose_image(
-                x["ego_map_gt_anticipated_at_t_1"]
-            )
-            ego_map_gt_anticipated_at_t = transpose_image(
-                x["ego_map_gt_anticipated_at_t"]
-            )
+        if ("ego_map_gt_anticipated_at_t_1" in x
+                and x["ego_map_gt_anticipated_at_t_1"] is not None):
+            ego_map_gt_anticipated_at_t_1 = transpose_image(x["ego_map_gt_anticipated_at_t_1"])
+            ego_map_gt_anticipated_at_t = transpose_image(x["ego_map_gt_anticipated_at_t"])
         else:
             ego_map_gt_anticipated_at_t_1 = None
             ego_map_gt_anticipated_at_t = None
+
         # Compute past and current egocentric maps
         bs = st_1.size(0)
         pu_inputs_t_1 = {
             "rgb": st_1,
-            "depth": dt_1,
+            "depth": dt_1, # 并不用
             "ego_map_gt": ego_map_gt_at_t_1, # occ depth 投影
             "ego_map_gt_anticipated": ego_map_gt_anticipated_at_t_1,
         }
         pu_inputs_t = {
             "rgb": st,
-            "depth": dt,
+            "depth": dt, # 并不用
             "ego_map_gt": ego_map_gt_at_t,
             "ego_map_gt_anticipated": ego_map_gt_anticipated_at_t,
         }
@@ -368,7 +364,7 @@ class Mapper(nn.Module):
             outputs["ego_map_hat_at_t"] = pu_outputs_t["ego_map_hat"]
         if "nig_params" in pu_outputs:
             outputs["nig_params"] = pu_outputs_t["nig_params"]
-        if "uncer_map" in pu_outputs:
+        if "uncer_map" in pu_outputs: # only use in nig
             outputs["uncer_pt"] = pu_outputs_t["uncer_map"]
         return outputs
 
@@ -461,15 +457,15 @@ class Mapper(nn.Module):
         """
         reg_type = self.config.registration_type
         beta = self.config.map_registration_momentum
-        if reg_type == "max":
+        if reg_type == "max": # 取构建好的全局地图和局部地图的极大者
             m_updated = torch.max(m, p_reg)
-        elif reg_type == "overwrite":
+        elif reg_type == "overwrite": # 直接用局部地图的值覆盖全局地图
             # Overwrite only the currently explored regions
             mask = (p_reg[:, 1] > self.config.thresh_explored).float()
             mask = mask.unsqueeze(1)
             m_updated = m * (1 - mask) + p_reg * mask
-        elif reg_type == "moving_average":
-            if explored is None:
+        elif reg_type == "moving_average": # 按照 beta 进行线性融合
+            if explored is None: # 在更新 uncertainty map 的时候会利用 occ map 的 explored map 信息
                 mask_unexplored = (
                     (p_reg[:, 1] <= self.config.thresh_explored).float().unsqueeze(1)
                 )
@@ -480,11 +476,11 @@ class Mapper(nn.Module):
                 )
                 mask_unfilled = (m == 0).float()
 
-            m_ma = p_reg * (1 - beta) + m * beta
+            m_ma = p_reg * (1 - beta) + m * beta # 平均
             m_updated = (
                 m * mask_unexplored # 注册图没有探索到的地方保持原状
-                + m_ma * (1.0 - mask_unexplored) * (1.0 - mask_unfilled) # 探索到但是原图为0的地方直接加上融合指标 
-                + p_reg * (1.0 - mask_unexplored) * mask_unfilled # 探索到但是原图不为 0 的地方，加上注册的值
+                + m_ma * (1.0 - mask_unexplored) * (1.0 - mask_unfilled) # 探索到但是原图不为 0 的地方，加上注册的值
+                + p_reg * (1.0 - mask_unexplored) * mask_unfilled # 探索到但是原图为0的地方直接加上融合指标
             )
         elif reg_type == "entropy_moving_average":
             explored_mask = (p_reg[:, 1] > self.config.thresh_explored).float()

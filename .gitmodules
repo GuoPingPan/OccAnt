@@ -10,4 +10,3 @@
 	path = environments/habitat/habitat-sim
 	url = git@gitee.com:guopingpan/habitat-sim.git
     branch = 2689aee121ae8123c3072af820f4c5333df487c2
-

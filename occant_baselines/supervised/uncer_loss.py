@@ -565,8 +565,6 @@ class NIGLoss(nn.Module):
         reg_loss = self._nig_reg(y, mu, v, alpha, beta, reduce=reduce)
         loss = nll_loss + self.lam * (reg_loss - self.epsilon)
         # loss = nll_loss
-        self.lam += self.maxi_rate * (reg_loss - self.epsilon)
-
-        return loss
+        return loss, reg_loss
 
 nig_loss_fn = NIGLoss()

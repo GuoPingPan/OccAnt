@@ -14,8 +14,8 @@ from habitat_baselines.common.baseline_registry import baseline_registry
 from occant_baselines.config.default import get_config
 
 import os
-os.environ['MAGNUM_LOG'] = "quiet"
-os.environ['GLOG_minloglevel'] = "2"
+# os.environ['MAGNUM_LOG'] = "quiet"
+# os.environ['GLOG_minloglevel'] = "2"
 
 
 def main():

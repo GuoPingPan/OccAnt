@@ -45,11 +45,14 @@ def nig_mapping_loss_fn(pt_hat, pt_gt, nig_params):
     v, alpha, beta = torch.split(nig_params, split_size_or_sections=1, dim=1)
 
     explored_mapping_loss = F.binary_cross_entropy(explored, explored_gt)
-    occupied_mapping_loss = nig_loss_fn(mu, alpha, v, beta, mu_gt)
-
+    occupied_mapping_loss, reg_loss  = nig_loss_fn(mu, alpha, v, beta, mu_gt)
+    # occupied_mapping_loss = nll_loss + reg_loss
+    
     mapping_loss = explored_mapping_loss + occupied_mapping_loss
-
-    return mapping_loss
+    # nig_loss_fn.lam += (nig_loss_fn.maxi_rate * (reg_loss - nig_loss_fn.epsilon)).detach()
+    #mapping_loss = explored_mapping_loss
+    print(mapping_loss)
+    return mapping_loss, reg_loss
 
 def pose_loss_fn(pose_hat, pose_gt):
     trans_loss = F.smooth_l1_loss(pose_hat[:, :2], pose_gt[:, :2])
@@ -221,8 +224,8 @@ def map_update_fn(ps_args):
             # -------- mapping loss ---------
             mapping_loss = simple_mapping_loss_fn(pt_hat, pt_gt)
         else:
-            nig_params = mapper_outputs["nig_params_at_t"]
-            mapping_loss = nig_mapping_loss_fn(pt_hat, pt_gt, nig_params)
+            nig_params = mapper_outputs["nig_params"]
+            mapping_loss, reg_loss = nig_mapping_loss_fn(pt_hat, pt_gt, nig_params)
 
 
         if freeze_projection_unit:
@@ -260,11 +263,13 @@ def map_update_fn(ps_args):
             rot_loss = rot_loss / n_outputs
 
         optimizer.zero_grad()
+        
         total_loss = mapping_loss + pose_estimation_loss * pose_loss_coef
 
         # Backward pass
         total_loss.backward()
-
+        if use_uncer is not None:
+            nig_loss_fn.lam += (nig_loss_fn.maxi_rate * (reg_loss.item() - nig_loss_fn.epsilon))
         # Update
         nn.utils.clip_grad_norm_(mapper.parameters(), max_grad_norm)
         optimizer.step()

@@ -448,7 +448,6 @@ class Mapper(nn.Module):
 
         return m_updated, p_reg
 
-
     def _aggregate(self, m, p_reg, explored=None):
         """
         Inputs:

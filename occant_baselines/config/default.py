@@ -261,6 +261,7 @@ _C.RL.ANS.PLANNER.weight_niters = 1
 # =============================================================================
 # NIG Params
 # =============================================================================
+_C.NIG_PARAMS = CN()
 _C.NIG_PARAMS.LAMBDA = 0.0
 _C.NIG_PARAMS.EPSILON = 1e-2
 _C.NIG_PARAMS.MAX_RATE = 1e-4

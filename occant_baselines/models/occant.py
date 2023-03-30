@@ -265,7 +265,7 @@ class OccAntDepth(BaseModel):
         nsf = gp_cfg.unet_nsf
         unet_encoder = UNetEncoder(2, nsf=nsf)
         unet_decoder = UNetDecoder(gp_cfg.nclasses, nsf=nsf)
-        unet_feat_size = nsf * 8
+        # unet_feat_size = nsf * 8
         self.gp_depth_proj_encoder = unet_encoder
         self.gp_decoder = unet_decoder
 
@@ -298,7 +298,7 @@ class OccAntDepthNIG(BaseModel):
         nsf = gp_cfg.unet_nsf
         unet_encoder = UNetEncoder(2, nsf=nsf)
         unet_decoder = UNetDecoder(4 + (gp_cfg.nclasses - 1), nsf=nsf) # 直接对最后一层的输出通道数进行修改
-        unet_feat_size = nsf * 8
+        # unet_feat_size = nsf * 8
         self.gp_depth_proj_encoder = unet_encoder
         self.gp_decoder = unet_decoder
         self.evidence = nn.Softplus()

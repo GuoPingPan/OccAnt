@@ -82,13 +82,14 @@ class ActiveNeuralSLAMBase(ABC):
         """
         map_scale = self.mapper.map_config["scale"]
         # Compute a map with ones for obstacles and zeros for the rest
+        # print(uncer_global_map.shape)
         if uncer_global_map is None:
             obstacle_mask = (maps[:, 0] > self.config.thresh_obstacle) \
                 & (maps[:, 1] > self.config.thresh_explored)
         else: # todo
             occ_map = (maps[:, 0] > self.config.thresh_obstacle)
             # 将不确定性考虑进来，有 0.5*uncertainty 的几率取反
-            obstacle_mask = ( (maps[:, 0] + 0.5 * uncer_maps * ~occ_map) > self.config.thresh_obstacle) \
+            obstacle_mask = ( (maps[:, 0] + 0.5 * uncer_global_map[:, 0] * ~occ_map) > self.config.thresh_obstacle) \
                 & ( maps[:, 1] > self.config.thresh_explored)
             
         final_maps = obstacle_mask.float()  # (bs, M, M)
@@ -523,6 +524,8 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
         masks,
         deterministic=False,
     ):
+        
+        use_uncer = self.config.MAPPER.use_uncer
         # ============================ Set useful variables ===========================
         ep_step = ep_time[0].item()
         M = prev_state_estimates["map_states"].shape[2]
@@ -537,7 +540,10 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
         mapper_outputs = self.mapper(mapper_inputs)
         global_map = mapper_outputs["mt"]
 
-        uncer_global_map = mapper_outputs["uncer_mt"] if "uncer_mt" in mapper_outputs else None
+        if use_uncer:
+            uncer_global_map = mapper_outputs["uncer_mt"] 
+        else:
+            uncer_global_map = None
 
         global_pose = mapper_outputs["xt_hat"]
         map_xy = convert_world2map(global_pose[:, :2], (M, M), s)
@@ -551,7 +557,8 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             # Compute state updates
             prev_dist2localgoal = self.states["curr_dist2localgoal"]
             curr_dist2localgoal = self._compute_dist2localgoal(
-                global_map, map_xy, self.states["curr_local_goals"], uncer_global_map=uncer_global_map
+                global_map, map_xy, self.states["curr_local_goals"], 
+                uncer_global_map=uncer_global_map
             )
             prev_map_position = self.states["curr_map_position"]
             prev_step_size = (
@@ -626,7 +633,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             )
 
             # todo：uncertainty map 也作为 global policy 的输入
-            if uncer_global_map is not None:
+            if use_uncer:
                 global_policy_inputs['uncer_map_at_t'] = uncer_global_map
 
             # print(global_policy_inputs["map_at_t"].shape)
@@ -655,7 +662,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             # Update the current map to prev_map_states in order to facilitate
             # future reward computation.
             self.states["prev_map_states"] = global_map.detach()
-            if uncer_global_map is not None:
+            if use_uncer:
                 self.states["prev_uncer_map_states"] = uncer_global_map.detach()
         else:
             global_policy_inputs = None
@@ -692,7 +699,9 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             ).tolist()
         # Execute planner and compute local goals
         self._compute_plans_and_local_goals(
-            global_map, self.states["curr_map_position"], SAMPLE_LOCAL_GOAL_FLAGS, uncer_global_map=uncer_global_map
+            global_map, self.states["curr_map_position"], 
+            SAMPLE_LOCAL_GOAL_FLAGS, 
+            uncer_global_map=uncer_global_map
         )
         # Update state variables to account for new local goals
         self.states["curr_dist2localgoal"] = self._compute_dist2localgoal(

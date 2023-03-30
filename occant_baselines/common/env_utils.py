@@ -34,7 +34,7 @@ def construct_envs(
     :return: VectorEnv object created according to specification.
     """
 
-    num_processes = config.NUM_PROCESSES
+    num_processes = config.NUM_PROCESSES # 36
     configs = []
     env_classes = [env_class for _ in range(num_processes)]
     dataset = make_dataset(config.TASK_CONFIG.DATASET.TYPE)
@@ -57,7 +57,7 @@ def construct_envs(
         random.shuffle(scenes)
 
     if devices is None:
-        devices = [config.SIMULATOR_GPU_ID]
+        devices = [config.SIMULATOR_GPU_ID] # 1
 
     scene_splits = [[] for _ in range(num_processes)]
     for idx, scene in enumerate(scenes):
@@ -74,6 +74,7 @@ def construct_envs(
         if len(scenes) > 0:
             task_config.DATASET.CONTENT_SCENES = scene_splits[i]
 
+        # GPU_DEVICE_ID 就是所有环境放到同一个设备上
         task_config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = devices[i % len(devices)]
 
         task_config.SIMULATOR.AGENT_0.SENSORS = config.SENSORS

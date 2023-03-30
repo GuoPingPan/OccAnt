@@ -286,10 +286,13 @@ class MapLargeRolloutStorage:
         for sensor in observations:
             # The default behavior
             bs = observations[sensor].shape[0]
+            # print(f"observations[sensor] use device: {observations[sensor].device}")
             if self.step + bs < self.replay_size:
                 self.observations[sensor][self.step : (self.step + bs)].copy_(
-                    observations[sensor]
+                    observations[sensor]\
+                        # .to(torch.device("cuda:3"))
                 )
+                # print(f"origin observations[sensor] use device: {observations[sensor].device}")
             else:
                 self.memory_filled = True
                 n1 = self.replay_size - self.step
@@ -336,6 +339,7 @@ class MapLargeRolloutStorageMP(MapLargeRolloutStorage):
             self.observations[sensor] = torch.zeros(
                 replay_size, *observation_space.spaces[sensor].shape
             )
+            # print(f"init observations[sensor] use device: {self.observations[sensor].device}")
 
         self.replay_size = replay_size
         # Re-define step and memory_filled as multiprocessing Values that are

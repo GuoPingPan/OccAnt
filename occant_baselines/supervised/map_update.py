@@ -45,13 +45,13 @@ def nig_mapping_loss_fn(pt_hat, pt_gt, nig_params):
     v, alpha, beta = torch.split(nig_params, split_size_or_sections=1, dim=1)
 
     explored_mapping_loss = F.binary_cross_entropy(explored, explored_gt)
-    occupied_mapping_loss, reg_loss  = nig_loss_fn(mu, alpha, v, beta, mu_gt)
+    occupied_mapping_loss, reg_loss = nig_loss_fn(mu, alpha, v, beta, mu_gt)
     # occupied_mapping_loss = nll_loss + reg_loss
     
     mapping_loss = explored_mapping_loss + occupied_mapping_loss
     # nig_loss_fn.lam += (nig_loss_fn.maxi_rate * (reg_loss - nig_loss_fn.epsilon)).detach()
     # mapping_loss = explored_mapping_loss
-    print(mapping_loss)
+    # print(mapping_loss)
     return mapping_loss, reg_loss
 
 def pose_loss_fn(pose_hat, pose_gt):
@@ -214,20 +214,21 @@ def map_update_fn(ps_args):
         pt_gt = observations[f"{label_id}_at_t"]  # (bs, V, V, 2)
         pt_gt = rearrange(pt_gt, "b h w c -> b c h w")  # (bs, 2, V, V)
 
+        # print(pt_hat.shape, pt_gt.shape)
         # Forward pass
         mapper_inputs = observations
         mapper_outputs = mapper(mapper_inputs, method_name="predict_deltas")
         pt_hat = mapper_outputs["pt"]
 
-        if use_uncer is None:
-            # Compute losses
-            # -------- mapping loss ---------
-            mapping_loss = simple_mapping_loss_fn(pt_hat, pt_gt)
-        else:
+        if use_uncer:
             nig_params = mapper_outputs["nig_params"]
             mapping_loss, reg_loss = nig_mapping_loss_fn(pt_hat, pt_gt, nig_params)
-
-
+        else:
+            # Compute losses
+            # -------- mapping loss ---------
+            # print(pt_hat.shape, pt_gt.shape)
+            mapping_loss = simple_mapping_loss_fn(pt_hat, pt_gt)
+            
         if freeze_projection_unit:
             mapping_loss = mapping_loss.detach()
 
@@ -268,7 +269,7 @@ def map_update_fn(ps_args):
 
         # Backward pass
         total_loss.backward()
-        if use_uncer is not None:
+        if use_uncer:
             nig_loss_fn.lam += (nig_loss_fn.maxi_rate * (reg_loss.item() - nig_loss_fn.epsilon))
         # Update
         nn.utils.clip_grad_norm_(mapper.parameters(), max_grad_norm)
@@ -377,17 +378,24 @@ class MapUpdate(MapUpdateBase):
             mapper_cfg, copy.deepcopy(self.mapper.projection_unit),
         )
         self.mapper_copy.load_state_dict(self.mapper.state_dict())
+        
+        # print(f"mapper_device: {next(self.mapper.parameters()).device}")
+        # print(f"Using device: {mapper_cfg.gpu_ids}")
 
-    
         if mapper_cfg.use_data_parallel and len(mapper_cfg.gpu_ids) > 0:
-            self.mapper_copy.to(self.mapper.config.gpu_ids[0])
+            self.mapper_copy.to(self.mapper.config.gpu_ids[0]) # cuda:1
             self.mapper_copy = nn.DataParallel(
                 self.mapper_copy,
-                device_ids=self.mapper.config.gpu_ids,
-                output_device=self.mapper.config.gpu_ids[0],
+                # device_ids=self.mapper.config.gpu_ids, # device = 1, 2, 3, 4, 5, 6, 7
+                # output_device=self.mapper.config.gpu_ids[0],
+                device_ids=[self.mapper.config.gpu_ids[0]]
             )
+            # self.mapper_copy.to(self.mapper.config.gpu_ids[0])
         else:
             self.mapper_copy.to(next(self.mapper.parameters()).device)
+        # self.mapper_copy.to(torch.device("cuda:1"))
+            # self.mapper_copy.to(torch.device("cuda:1"))
+            # self.mapper.to(torch.device("cuda:1"))
 
         self.mapper_copy.share_memory()
         self.optimizer = optim.Adam(

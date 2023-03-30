@@ -21,6 +21,7 @@ import gym.spaces as spaces
 import torch
 import torch.nn.functional as F
 import torch.multiprocessing as mp
+from tqdm import tqdm
 
 from torch.optim.lr_scheduler import LambdaLR
 
@@ -210,8 +211,9 @@ class OccAntExpTrainer(BaseRLTrainer):
         occupancy_model = OccupancyAnticipator(occ_cfg)
         occupancy_model = OccupancyAnticipationWrapper(
             occupancy_model, mapper_cfg.map_size,
-            (self.config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.HEIGHT,
-             self.config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.WIDTH)
+            # (self.config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.HEIGHT,
+            #  self.config.TASK_CONFIG.SIMULATOR.DEPTH_SENSOR.WIDTH)
+            (128, 128)
         )
         # Create ANS model
         self.ans_net = ActiveNeuralSLAMExplorer(ans_cfg, occupancy_model)
@@ -242,7 +244,7 @@ class OccAntExpTrainer(BaseRLTrainer):
             batch_size=mapper_cfg.map_batch_size,
             mapper_rollouts=self.mapper_rollouts,
         )
-
+        global nig_loss_fn 
         nig_loss_fn = nig_loss_fn.init(
             lam=self.config.NIG_PARAMS.LAMBDA,
             epsilon=self.config.NIG_PARAMS.EPSILON,
@@ -320,7 +322,7 @@ class OccAntExpTrainer(BaseRLTrainer):
         Returns:
             dict containing checkpoint info
         """
-        return torch.load(checkpoint_path, map_location='cpu', *args, **kwargs)
+        return torch.load(checkpoint_path, *args, **kwargs)
 
     def resume_checkpoint(self, path=None):
         r"""If an existing checkpoint already exists, resume training.
@@ -895,6 +897,7 @@ class OccAntExpTrainer(BaseRLTrainer):
         mapper_device = self.device
         if ans_cfg.MAPPER.use_data_parallel and len(ans_cfg.MAPPER.gpu_ids) > 0:
             mapper_device = ans_cfg.MAPPER.gpu_ids[0]
+            # mapper_device = torch.device("cuda:1")
         mapper_rollouts = MapLargeRolloutStorageMP(
             ans_cfg.MAPPER.replay_size,
             mapper_observation_space,
@@ -1027,7 +1030,7 @@ class OccAntExpTrainer(BaseRLTrainer):
         mapper_cfg = self.config.RL.ANS.MAPPER
         occ_cfg = self.config.RL.ANS.OCCUPANCY_ANTICIPATOR
         self.device = (
-            torch.device("cuda", self.config.TORCH_GPU_ID)
+            torch.device("cuda", self.config.TORCH_GPU_ID) # rollout 放在这个 device
             if torch.cuda.is_available()
             else torch.device("cpu")
         )
@@ -1193,7 +1196,7 @@ class OccAntExpTrainer(BaseRLTrainer):
         with TensorboardWriter(
             self.config.TENSORBOARD_DIR, flush_secs=self.flush_secs
         ) as writer:
-            for update in range(num_updates_start, NUM_GLOBAL_UPDATES):
+            for update in tqdm(range(num_updates_start, NUM_GLOBAL_UPDATES)):
                 for step in range(NUM_GLOBAL_STEPS):
                     (
                         delta_pth_time,
@@ -1244,7 +1247,7 @@ class OccAntExpTrainer(BaseRLTrainer):
                         (
                             delta_pth_time,
                             update_metrics_mapper,
-                        ) = self. (mapper_rollouts)
+                        ) = self._update_mapper_agent(mapper_rollouts)
 
                         for k, v in update_metrics_mapper.items():
                             statistics_dict["mapper"][k].append(v)

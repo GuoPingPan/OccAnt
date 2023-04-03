@@ -14,6 +14,9 @@ import os.path as osp
 import logging
 logger = logging.getLogger("train_logger")
 
+
+np.set_printoptions(precision=6)
+
 from torch.utils.tensorboard import SummaryWriter
 
 class VoTrainer:
@@ -82,7 +85,7 @@ class VoTrainer:
         nw = min([os.cpu_count(), args.batch_size, 8])
         print(f"All CPU: {os.cpu_count()}")
         print(f"Use CPU: {nw}")
-        nw = 0 # 为 0的时候直接用满
+        nw = 8 # 为 0的时候直接用满
         print(f"batch size: {args.batch_size}")
         if self.device == "cpu":
             self.gpus = 0
@@ -195,6 +198,7 @@ class VoTrainer:
             "turn_left_rot_mae": torch.zeros(1, dtype=torch.float),
             "turn_right_rot_mae": torch.zeros(1, dtype=torch.float),
 
+            "trans_uncer": torch.zeros(3, dtype=torch.float),
             "trans_uncer_mean": torch.zeros(1, dtype=torch.float),
             "rot_uncer_mean": torch.zeros(1, dtype=torch.float),
 
@@ -217,7 +221,8 @@ class VoTrainer:
             pose_loss_reduce = 0.0
             reg_loss_reduce = 0.0
             
-            trans_uncer_aa = torch.zeros(1, dtype=torch.float)
+            trans_uncer_aa = torch.zeros(3, dtype=torch.float)
+            trans_uncer_aa_mean = torch.zeros(1, dtype=torch.float)
             rot_uncer_aa = torch.zeros(1, dtype=torch.float)
 
             for k, mask_index in index_masks.items():
@@ -245,14 +250,16 @@ class VoTrainer:
                         pose_loss = self.pose_l1_loss(out, pose_delta_gt) + self.pose_laplacian_loss(out)
                         trans_uncer, rot_uncer = metric.rot_and_trans_laplacian_uncer(out)
                         trans_uncer_aa += trans_uncer*factor
+                        trans_uncer_aa_mean += torch.mean(trans_uncer)*factor
                         rot_uncer_aa += rot_uncer*factor
                     elif self.decoder_type == "gaussian":
                        pose_loss = self.pose_l1_loss(out, pose_delta_gt) + self.pose_gaussian_loss(out)
                     elif self.decoder_type == "nig":
-                        pose_loss, reg_loss = self.pose_nig_loss(out)
-                        reg_loss_reduce += reg_loss * factor
+                        pose_loss, reg_loss = self.pose_nig_loss(out, pose_delta_gt)
+                        reg_loss_reduce += reg_loss.clone().detach().cpu() * factor
                         trans_uncer, rot_uncer = metric.rot_and_trans_nig_uncer(out)
                         trans_uncer_aa += trans_uncer*factor
+                        trans_uncer_aa_mean += torch.mean(trans_uncer)*factor
                         rot_uncer_aa += rot_uncer*factor
                     else:
                         raise NotImplementedError
@@ -275,23 +282,32 @@ class VoTrainer:
                     for k, v in metric_dict.items():
                         if "mae" in k:
                             metric_dict[k] = self.reduce_value(v, average=True)
-                    metric_dict["trans_uncer_mean"] += self.reduce_value(trans_uncer_aa, average=True)
+                    metric_dict["trans_uncer"] += self.reduce_value(trans_uncer_aa, average=True)
+                    metric_dict["trans_uncer_mean"] += self.reduce_value(trans_uncer_aa_mean, average=True)
                     metric_dict["rot_uncer_mean"] += self.reduce_value(rot_uncer_aa, average=True)
                 else:
                     metric_dict["loss"] += pose_loss_reduce.detach().cpu()
-                    metric_dict["trans_uncer_mean"] += trans_uncer_aa
+                    metric_dict["trans_uncer"] += trans_uncer_aa
+                    metric_dict["trans_uncer_mean"] += trans_uncer_aa_mean
                     metric_dict["rot_uncer_mean"] += rot_uncer_aa
 
-                if batch % (self.args.vonet_log_interval-1) == 0:
+                if batch % self.args.vonet_log_interval == 0:
 
-                    log = f"[Trainning] Batch:[{batch+1:>3d}/{batches:>3d}]\n" 
+                    log = f"[Trainning] Batch:[{batch:>3d}/{batches:>3d}]\n" 
                     for k, v in metric_dict.items():
                         # print(k, v, batch)
+                        if k == "trans_uncer": 
+                            log += f"\t {k}: {v.numpy()/(batch+1)}\n"
+                            continue
                         log += f"\t {k}: {v.item()/(batch+1):.6f}\n"
+
                     print(log)
                     logger.info(log)
 
         for k, v in metric_dict.items():
+            if k == "trans_uncer":
+                metric_dict[k] = v.numpy() / batches
+                continue
             metric_dict[k] = v.item() / batches 
 
         # 等待所有进程计算完毕
@@ -318,6 +334,7 @@ class VoTrainer:
             "turn_left_rot_mae": torch.zeros(1, dtype=torch.float),
             "turn_right_rot_mae": torch.zeros(1, dtype=torch.float),
 
+            "trans_uncer": torch.zeros(3, dtype=torch.float),
             "trans_uncer_mean": torch.zeros(1, dtype=torch.float),
             "rot_uncer_mean": torch.zeros(1, dtype=torch.float),
 
@@ -343,7 +360,8 @@ class VoTrainer:
                 reg_loss_reduce = 0.0
 
 
-                trans_uncer_aa = torch.zeros(1, dtype=torch.float)
+                trans_uncer_aa = torch.zeros(3, dtype=torch.float)
+                trans_uncer_aa_mean = torch.zeros(1, dtype=torch.float)
                 rot_uncer_aa = torch.zeros(1, dtype=torch.float)
 
                 for k, mask_index in index_masks.items():
@@ -371,37 +389,45 @@ class VoTrainer:
                             pose_loss = self.pose_l1_loss(out, pose_delta_gt) + self.pose_laplacian_loss(out)
                             trans_uncer, rot_uncer = metric.rot_and_trans_laplacian_uncer(out)
                             trans_uncer_aa += trans_uncer*factor
+                            trans_uncer_aa_mean += torch.mean(trans_uncer)*factor
                             rot_uncer_aa += rot_uncer*factor
-                        elif self.decoder_type == "guassian":
+                        elif self.decoder_type == "gaussian":
                             pose_loss = self.pose_l1_loss(out, pose_delta_gt) + self.pose_gaussian_loss(out)
                         elif self.decoder_type == "nig":
-                            pose_loss, reg_loss = self.pose_nig_loss(out)
-                            reg_loss_reduce += reg_loss * factor
+                            pose_loss, reg_loss = self.pose_nig_loss(out, pose_delta_gt)
+                            reg_loss_reduce += reg_loss.clone().detach().cpu() * factor
                             trans_uncer, rot_uncer = metric.rot_and_trans_nig_uncer(out)
                             trans_uncer_aa += trans_uncer*factor
+                            trans_uncer_aa_mean += torch.mean(trans_uncer)*factor
                             rot_uncer_aa += rot_uncer*factor
+                        else:
+                            raise NotImplementedError
 
                         pose_loss_reduce += pose_loss * factor
 
 
                 # logging
-                if (self.gpus <= 1 or self.rank == 0) and batch % (100-1) == 0:
+                if (self.gpus <= 1 or self.rank == 0) and batch % 100 == 0:
                     if (self.gpus > 1):
                         metric_dict["loss"] += self.reduce_value(pose_loss_reduce.detach(), average=True)
                         for k, v in metric_dict.items():
                             if "mae" in k:
                                 metric_dict[k] = self.reduce_value(v, average=True)
-                        metric_dict["trans_uncer_mean"] += self.reduce_value(trans_uncer_aa, average=True)
+                        metric_dict["trans_uncer"] += self.reduce_value(trans_uncer_aa, average=True)
+                        metric_dict["trans_uncer_mean"] += self.reduce_value(trans_uncer_aa_mean, average=True)
                         metric_dict["rot_uncer_mean"] += self.reduce_value(rot_uncer_aa, average=True)
-
                     else:
                         metric_dict["loss"] += pose_loss_reduce.detach().cpu()
-                        metric_dict["trans_uncer_mean"] += trans_uncer_aa
+                        metric_dict["trans_uncer"] += trans_uncer_aa
+                        metric_dict["trans_uncer_mean"] += trans_uncer_aa_mean
                         metric_dict["rot_uncer_mean"] += rot_uncer_aa
     
 
-                    log = f"[Evaluation] Batch:[{batch+1:>3d}/{batches:>3d}]\n" 
+                    log = f"[Evaluation] Batch:[{batch:>3d}/{batches:>3d}]\n" 
                     for k, v in metric_dict.items():
+                        if k == "trans_uncer": 
+                            log += f"\t {k}: {(v.numpy()/(batch+1))}\n"
+                            continue
                         log += f"\t {k}: {v.item()/(batch+1):.6f}\n"
 
                     print(log)
@@ -409,6 +435,9 @@ class VoTrainer:
 
       
             for k, v in metric_dict.items():
+                if k == "trans_uncer":
+                    metric_dict[k] = v.numpy() / batches
+                    continue
                 metric_dict[k] = v.item() / batches 
 
 
@@ -451,6 +480,9 @@ class VoTrainer:
                 log = f"[Epoch Train]:[{epoch + 1:>3d}/{self.args.epochs:>3d}]\n"
 
                 for k, v in metric_dict.items():
+                    if k == "trans_uncer": 
+                        log += f"\t {k}: {v.tolist()}\n"
+                        continue
                     writer.add_scalar(f"Train/{k}", v, epoch)
                     log += f"\t {k}: {v:.6f}\n"
 
@@ -466,9 +498,12 @@ class VoTrainer:
                 best_epoch = epoch
 
             if self.gpus <= 1 or self.rank == 0:
-                log = f"[Epoch Eval]:[{epoch + 1:>3d}/{self.args.epochs:>3d}]" 
+                log = f"[Epoch Eval]:[{epoch + 1:>3d}/{self.args.epochs:>3d}]\n" 
 
                 for k, v in metric_dict.items():
+                    if k == "trans_uncer": 
+                        log += f"\t {k}: {v.tolist()}\n"
+                        continue
                     writer.add_scalar(f"Test/{k}", v, epoch)
                     log += f"\t {k}: {v:.6f}\n"
 

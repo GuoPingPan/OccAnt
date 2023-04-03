@@ -37,9 +37,9 @@ if __name__ == '__main__':
     func_list = []
 
     # close env
-    for i in range(args.num_processes):
-        func_list.append('close')
-    envs.call(func_list)
+    # for i in range(args.num_processes):
+    #     func_list.append('close')
+    # envs.call(func_list)
 
     end = time.time()
     print(f'{args.num_processes_per_gpu} gpus use time: {end - start}')

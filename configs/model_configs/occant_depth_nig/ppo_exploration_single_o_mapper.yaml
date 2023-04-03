@@ -1,18 +1,18 @@
 BASE_TASK_CONFIG_PATH: "configs/exploration/gibson_train.yaml"
 TRAINER_NAME: "occant_exp"
 ENV_NAME: "ExpRLEnv"
-SIMULATOR_GPU_ID: 5
+SIMULATOR_GPU_ID: 2
 SIMULATOR_GPU_IDS: [2, 3]
 TORCH_GPU_ID: 0
 VIDEO_OPTION: ["disk", "tensorboard"]
-TENSORBOARD_DIR: "trained_models/occant_depth_nig/tb"
-VIDEO_DIR: "trained_models/occant_depth_nig/video_dir"
+TENSORBOARD_DIR: "trained_models/occant_depth_nig_o_mapper_sigmoid/tb"
+VIDEO_DIR: "trained_models/occant_depth_nig_o_mapper_sigmoid/video_dir"
 TEST_EPISODE_COUNT: 2
 # EVAL_CKPT_PATH_DIR: "trained_models/occant_depth_nig/train_noisy_ep0/checkpoints"
-EVAL_CKPT_PATH_DIR: "trained_models/occant_depth_nig_sigmoid/checkpoints"
+EVAL_CKPT_PATH_DIR: "trained_models/occant_depth_nig_o_mapper_sigmoid/checkpoints"
 NUM_PROCESSES: 36
 SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR"]
-CHECKPOINT_FOLDER: "trained_models/occant_depth_nig_sigmoid/checkpoints"
+CHECKPOINT_FOLDER: "trained_models/occant_depth_nig_o_mapper_sigmoid/checkpoints"
 NUM_EPISODES: 10000
 T_EXP: 1000
 
@@ -37,6 +37,7 @@ RL:
       use_uncer: True
       replay_size: 100000
       gpu_ids: [1, 2, 3]
+      create_global_map: False
     OCCUPANCY_ANTICIPATOR:
       type: 'occant_depth_nig'
       GP_ANTICIPATION:
@@ -44,6 +45,6 @@ RL:
         resnet_type: 'resnet18'
         unet_nsf: 64
     GLOBAL_POLICY:
-      use_uncer: True
+      use_uncer: False
     LOCAL_POLICY:
       learning_algorithm: 'rl'

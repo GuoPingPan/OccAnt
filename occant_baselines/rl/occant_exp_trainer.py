@@ -111,8 +111,10 @@ class OccAntExpTrainer(BaseRLTrainer):
 
         # 同步 nig uncertainty
         if config.RL.ANS.OCCUPANCY_ANTICIPATOR.type == "occant_depth_nig":
-            assert config.RL.ANS.GLOBAL_POLICY.use_uncer & config.RL.ANS.MAPPER.use_uncer, \
-                "If use `occant_depth_nig`, please set use_uncer for global policy and mapper."
+            # assert config.RL.ANS.GLOBAL_POLICY.use_uncer & config.RL.ANS.MAPPER.use_uncer, \
+            #     "If use `occant_depth_nig`, please set use_uncer for global policy and mapper."
+            assert config.RL.ANS.MAPPER.use_uncer, \
+                "If use `occant_depth_nig`, please set use_uncer for mapper."
 
         # Compute the EGO_PROJECTION options based on the
         # depth sensor information and agent parameters.
@@ -345,16 +347,17 @@ class OccAntExpTrainer(BaseRLTrainer):
                 ckpt_dict = self.load_checkpoint(checkpoint_path)
 
                 # todo：删除 del，这里本来只是为了解决权重不对齐问题
-                del ckpt_dict["global_state_dict"]['actor_critic.actor.0.weight']
-                del ckpt_dict["global_state_dict"]['actor_critic.actor.0.bias']
-                del ckpt_dict["global_state_dict"]['actor_critic.critic.0.weight']
-                del ckpt_dict["global_state_dict"]['actor_critic.critic.0.bias']
+                # del ckpt_dict["global_state_dict"]['actor_critic.actor.0.weight']
+                # del ckpt_dict["global_state_dict"]['actor_critic.actor.0.bias']
+                # del ckpt_dict["global_state_dict"]['actor_critic.critic.0.weight']
+                # del ckpt_dict["global_state_dict"]['actor_critic.critic.0.bias']
                 # for k,v in ckpt_dict["global_state_dict"].items():
                 #     print(k)
 
                 self.mapper_agent.load_state_dict(ckpt_dict["mapper_state_dict"])
                 self.local_agent.load_state_dict(ckpt_dict["local_state_dict"])
-                self.global_agent.load_state_dict(ckpt_dict["global_state_dict"], strict=False)
+                # self.global_agent.load_state_dict(ckpt_dict["global_state_dict"], strict=False)
+                self.global_agent.load_state_dict(ckpt_dict["global_state_dict"])
                 self.mapper = self.mapper_agent.mapper
                 self.local_actor_critic = self.local_agent.actor_critic
                 self.global_actor_critic = self.global_agent.actor_critic
@@ -376,10 +379,10 @@ class OccAntExpTrainer(BaseRLTrainer):
             ckpt_dict = self.load_checkpoint(path)
 
             # todo：删除 del，这里本来只是为了解决权重不对齐问题
-            del ckpt_dict["global_state_dict"]['actor_critic.actor.0.weight']
-            del ckpt_dict["global_state_dict"]['actor_critic.actor.0.bias']
-            del ckpt_dict["global_state_dict"]['actor_critic.critic.0.weight']
-            del ckpt_dict["global_state_dict"]['actor_critic.critic.0.bias']
+            # del ckpt_dict["global_state_dict"]['actor_critic.actor.0.weight']
+            # del ckpt_dict["global_state_dict"]['actor_critic.actor.0.bias']
+            # del ckpt_dict["global_state_dict"]['actor_critic.critic.0.weight']
+            # del ckpt_dict["global_state_dict"]['actor_critic.critic.0.bias']
 
             self.mapper_agent.load_state_dict(ckpt_dict["mapper_state_dict"])
             self.local_agent.load_state_dict(ckpt_dict["local_state_dict"])
@@ -387,9 +390,9 @@ class OccAntExpTrainer(BaseRLTrainer):
             self.mapper = self.mapper_agent.mapper
             self.local_actor_critic = self.local_agent.actor_critic
             self.global_actor_critic = self.global_agent.actor_critic
-            num_updates_start = 0
-            count_steps = 0
-            count_checkpoints = 0
+            # num_updates_start = 0
+            # count_steps = 0
+            # count_checkpoints = 0
 
         return num_updates_start, count_steps, count_checkpoints
 
@@ -1126,12 +1129,16 @@ class OccAntExpTrainer(BaseRLTrainer):
             "pose_estimates": torch.zeros(self.envs.num_envs, 3).to(self.device),
             # Agent's map
             "map_states": torch.zeros(self.envs.num_envs, 2, M, M).to(self.device),
-            "uncer_map_states": torch.zeros(self.envs.num_envs, 1, M, M).to(self.device), # todo
             "recurrent_hidden_states": torch.zeros(
                 1, self.envs.num_envs, ans_cfg.LOCAL_POLICY.hidden_size
             ).to(self.device),
             "visited_states": torch.zeros(self.envs.num_envs, 1, M, M).to(self.device),
         }
+
+        # 全局不确定性地图是根据全局策略是否需要而产生
+        if self.config.RL.ANS.GLOBAL_POLICY.use_uncer:
+            state_estimates["uncer_map_states"]: torch.zeros(self.envs.num_envs, 1, M, M).to(self.device) # todo
+
         ground_truth_states = {
             # To measure area seen
             "visible_occupancy": torch.zeros(
@@ -1471,6 +1478,8 @@ class OccAntExpTrainer(BaseRLTrainer):
         self.mapper = self.mapper_agent.mapper
         self.global_actor_critic = self.global_agent.actor_critic
 
+        print(f"Successily load from: {checkpoint_path}")
+
         rgb_frames = [
             [] for _ in range(self.config.NUM_PROCESSES)
         ]  # type: List[List[np.ndarray]]
@@ -1522,7 +1531,6 @@ class OccAntExpTrainer(BaseRLTrainer):
             state_estimates = {
                 "pose_estimates": torch.zeros(self.envs.num_envs, 3).to(self.device),
                 "map_states": torch.zeros(self.envs.num_envs, 2, M, M).to(self.device),
-                "uncer_map_states": torch.zeros(self.envs.num_envs, 1, M, M).to(self.device), # todo
                 "ego_anticipate_map_pre": torch.zeros(self.envs.num_envs, 2, V, V).to(self.device),
                 "recurrent_hidden_states": torch.zeros(
                     1, self.envs.num_envs, ans_cfg.LOCAL_POLICY.hidden_size
@@ -1531,6 +1539,14 @@ class OccAntExpTrainer(BaseRLTrainer):
                     self.device
                 ),
             }
+
+            # 全局不确定性地图是根据全局策略是否需要而产生
+            if self.config.RL.ANS.GLOBAL_POLICY.use_uncer:
+                state_estimates["uncer_map_states"]: torch.zeros(self.envs.num_envs, 1, M, M).to(self.device) # todo
+            if self.config.RL.ANS.MAPPER.use_uncer:
+                state_estimates["ego_uncer_map_pre"]: torch.zeros(self.envs.num_envs, 2, V, V).to(self.device)
+
+
             ground_truth_states = {
                 "visible_occupancy": torch.zeros(self.envs.num_envs, 2, M, M).to(self.device),
                 "pose": torch.zeros(self.envs.num_envs, 3).to(self.device),
@@ -1755,13 +1771,23 @@ class OccAntExpTrainer(BaseRLTrainer):
                                 observations[i], infos[i], observation_size=300
                             )
                             
-                            # Add ego_map_gt to frame
-                            # ego_map_gt_i = asnumpy(batch["ego_map_gt"][i])  # (2, H, W)
-                            ego_map_gt_i = asnumpy(batch["ego_map_gt_anticipated"][i])  # (2, H, W)
-                            # print(ego_map_gt_i.shape) # 65 65 2
-                            ego_map_gt_i = convert_gt2channel_to_gtrgb(ego_map_gt_i)
-                            ego_map_gt_i = cv2.resize(ego_map_gt_i, (300, 300))
-                            frame = np.concatenate([frame, ego_map_gt_i], axis=1) # 在横向方向进行拼接
+
+
+                            ego_anticipate_map_pre_i = asnumpy(rearrange(state_estimates["ego_anticipate_map_pre"][i], "c h w -> h w c"))  # (2, H, W)
+                            ego_anticipate_map_pre_i = convert_gt2channel_to_gtrgb(ego_anticipate_map_pre_i) # 2,65,65
+                            ego_anticipate_map_pre_i = cv2.resize(ego_anticipate_map_pre_i, (300, 300)) # 2,300,300
+                            frame = np.concatenate([frame, ego_anticipate_map_pre_i], axis=1) # 在横向方向进行拼接
+
+                            # 如果输出mapper的不确定性估计，就对此进行可视化
+                            if (self.config.RL.ANS.GLOBAL_POLICY.use_uncer or self.config.RL.ANS.MAPPER.use_uncer) == 0:
+                                pass
+                            elif self.config.RL.ANS.MAPPER.use_uncer: # 输出局部
+                                ego_uner_map_pre_i = asnumpy(rearrange(state_estimates["ego_uncer_map_pre"][i], "c h w -> h w c"))  # (2, H, W)
+                                ego_uner_map_pre_i = convert_gt2channel_to_gtrgb(ego_uner_map_pre_i) # 2,65,65
+                                ego_uner_map_pre_i = cv2.resize(ego_uner_map_pre_i, (300, 300)) # 2,300,300
+                                frame = np.concatenate([frame, ego_uner_map_pre_i], axis=1) # 在横向方向进行拼接
+                            else: # 输出全局
+                                frame = np.concatenate([frame, np.zeros_like(ego_anticipate_map_pre_i)], axis=1)
 
                             # Generate ANS specific visualizations
                             # 环境 地图
@@ -1772,7 +1798,17 @@ class OccAntExpTrainer(BaseRLTrainer):
                             visible_occupancy = asnumpy(
                                 ground_truth_states["visible_occupancy"][i]
                             )  # (2, H, W)
-
+                            
+                            # 如果输出全局不确定性地图就进行处理可视化
+                            if self.config.RL.ANS.GLOBAL_POLICY.use_uncer:
+                                uncer_occupancy = asnumpy(
+                                    torch.concat([state_estimates["uncer_map_states"],
+                                                  torch.index_select(state_estimates["map_states"], 1,\
+                                                torch.tensor([1]).to(state_estimates["map_states"].device))
+                                                ],
+                                                dim=1)[i]
+                                )  # (2, H, W)
+                                
                             # 真实的位置序列
                             curr_gt_poses = gt_agent_poses_over_time[i]
 
@@ -1780,6 +1816,7 @@ class OccAntExpTrainer(BaseRLTrainer):
                             anticipated_occupancy = asnumpy(
                                 state_estimates["map_states"][i]
                             )  # (2, H, W)
+
 
                             # 预测位置序列
                             curr_pred_poses = pred_agent_poses_over_time[i]
@@ -1819,6 +1856,24 @@ class OccAntExpTrainer(BaseRLTrainer):
                                 thresh_obstacle=ans_cfg.thresh_obstacle,
                             )
 
+                            # print(f"anticipated_action_map.shape: {anticipated_action_map.shape}")
+                            # print(f"environment_layout.shape: {environment_layout.shape}")
+
+                            # 如果输出全局不确定性地图就进行处理可视化
+                            if self.config.RL.ANS.GLOBAL_POLICY.use_uncer:
+                                uncer_occupancy = generate_topdown_allocentric_map(
+                                    environment_layout,
+                                    uncer_occupancy,
+                                    curr_pred_poses,
+                                    thresh_explored=ans_cfg.thresh_explored,
+                                    thresh_obstacle=ans_cfg.thresh_obstacle,
+                                )
+                                uncer_occupancy = cv2.resize(
+                                    uncer_occupancy, (H, H)
+                                )
+
+                            # print("uncer_occupancy.shape: ", uncer_occupancy.shape)
+
                             # 绘制目标
                             global_goals = self.ans_net.states["curr_global_goals"]
                             local_goals = self.ans_net.states["curr_local_goals"]
@@ -1846,10 +1901,13 @@ class OccAntExpTrainer(BaseRLTrainer):
                                 anticipated_action_map, (H, H)
                             )
 
-                            ego_anticipate_map_pre_i = asnumpy(rearrange(state_estimates["ego_anticipate_map_pre"][i], "c h w -> h w c"))  # (2, H, W)
-                            # print(ego_anticipate_map_pre_i.shape)
-                            ego_anticipate_map_pre_i = convert_gt2channel_to_gtrgb(ego_anticipate_map_pre_i)
-                            ego_anticipate_map_pre_i = cv2.resize(ego_anticipate_map_pre_i, (300, 300))
+                            # Add ego_map_gt to frame
+                            # ego_map_gt_i = asnumpy(batch["ego_map_gt"][i])  # (2, H, W)
+                            ego_map_gt_i = asnumpy(prev_batch["ego_map_gt_anticipated"][i])  # (2, H, W)
+                            # print(ego_map_gt_i.shape) # 65 65 2
+                            ego_map_gt_i = convert_gt2channel_to_gtrgb(ego_map_gt_i)
+                            ego_map_gt_i = cv2.resize(ego_map_gt_i, (300, 300))
+
 
                             # 捆绑所有图
                             maps_vis = np.concatenate(
@@ -1857,12 +1915,22 @@ class OccAntExpTrainer(BaseRLTrainer):
                                     visible_occupancy_vis,
                                     anticipated_occupancy_vis,
                                     anticipated_action_map,
-                                    # np.zeros_like(anticipated_action_map),
-                                    ego_anticipate_map_pre_i# 在横向方向进行拼接
+                                    ego_map_gt_i,# 在横向方向进行拼接
 
                                 ],
                                 axis=1,
                             ) # 这个式在横向进行拼接
+
+                            # 不输出全局就为 0
+                            if (self.config.RL.ANS.GLOBAL_POLICY.use_uncer or self.config.RL.ANS.MAPPER.use_uncer) == 0:
+                                pass
+                            elif self.config.RL.ANS.GLOBAL_POLICY.use_uncer: # 有全局
+                                # else np.zeros_like(anticipated_action_map), # todo
+                                maps_vis = np.concatenate([maps_vis, uncer_occupancy], axis=1) 
+                            else: # 有局部
+                                maps_vis = np.concatenate([maps_vis, np.zeros_like(anticipated_action_map)], axis=1) 
+
+
                             frame = np.concatenate([frame, maps_vis], axis=0) # 在垂直方向进行拼接
 
                             rgb_frames[i].append(frame)

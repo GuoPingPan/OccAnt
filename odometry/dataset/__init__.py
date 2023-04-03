@@ -1,5 +1,3 @@
-import random
-
 from habitat.config.default import get_config
 
 from habitat_baselines.common.env_utils import make_env_fn, VectorEnv
@@ -50,10 +48,11 @@ def construct_envs(args, workers_ignore_signals: bool = False,) -> VectorEnv:
         scenes = dataset.get_scenes_to_load(init_config.DATASET)
     scenes = list(scenes)
 
+
+
     finised_scenes = os.listdir(args.generate_dataset_output_dir.format(split=args.split))
     unfinished_scenes = [scene for scene in scenes if scene not in finised_scenes]
 
-    random.shuffle(scenes)
     print(f"All {args.total_num_scenes} scenes:\n", scenes)
     print(f"Finished {len(finised_scenes)} scenes:\n", finised_scenes)
     print(f"Waiting for generate {len(unfinished_scenes)} scenes:\n", unfinished_scenes)
@@ -67,7 +66,6 @@ def construct_envs(args, workers_ignore_signals: bool = False,) -> VectorEnv:
         
     args.process_split = [args.num_processes_per_gpu for i in range(args.num_gpus)]
     
-
 
     # # todo: delete
     # scenes = ['Shelbiana', 'Haxtun', 'Avonia', 'Mifflintown', 'Ballou', 'Annawan']
@@ -87,7 +85,7 @@ def construct_envs(args, workers_ignore_signals: bool = False,) -> VectorEnv:
 
             # config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = int(4)
             config.DATASET.SPLIT = args.split
-            config.DATASET.CONTENT_SCENES = scenes[scenes_per_process*j: (j+1)*scenes_per_process]
+            config.DATASET.CONTENT_SCENES = unfinished_scenes[scenes_per_process*j: (j+1)*scenes_per_process]
 
             # key
             config.DATASET.MAX_SCENE_REPEAT_STEPS = args.max_episode_length

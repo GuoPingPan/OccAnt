@@ -51,7 +51,8 @@ class PoseNIGLossOld(nn.Module):
         Omega = 2*beta*(1 + v)
 
         nll_loss = 0.5*torch.log(torch.pi/v) - alpha*torch.log(Omega) \
-                 + (alpha + 0.5)*torch.log(v*(mu-pose_gt)**2 + Omega) + torch.lgamma(alpha) - torch.lgamma(alpha + 0.5)
+                 + (alpha + 0.5)*torch.log(v*(mu-pose_gt)**2 + Omega) + \
+                    torch.lgamma(alpha) - torch.lgamma(alpha + 0.5)
 
         error = (mu - pose_gt).abs()
         evi = 2*v + alpha

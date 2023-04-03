@@ -16,11 +16,11 @@ python3 train_vo.py \
 --embedding_size 8 \
 --use_dropout \
 --add_obs_noise \
---decoder_type base \
+--decoder_type nig \
 --use_group_norm \
 --use_act_embedding \
-# --use_collision_embedding \ 
 --emb_layers 2
+# --use_collision_embedding \ 
 
 # --split_action
 

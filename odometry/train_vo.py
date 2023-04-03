@@ -22,10 +22,10 @@ if __name__ == '__main__':
     #         print("Successfully delete!")
     #     else:
     #         exit('Please change the output_dir!')
-    try:
-        shutil.rmtree(args.log_dir)
-    except:
-        pass
+    # try:
+    #     shutil.rmtree(args.log_dir)
+    # except:
+    #     pass
 
     assert not os.makedirs(args.log_dir, exist_ok=True), f'make dir [{args.log_dir}] failed!'
 
@@ -33,4 +33,4 @@ if __name__ == '__main__':
     start = time.time()
     trainer.train()
     end = time.time()
-    print(f"Training use time: {start - end}")
+    print(f"Training use time: {end - start}")

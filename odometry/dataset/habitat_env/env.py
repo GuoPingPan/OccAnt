@@ -201,10 +201,12 @@ class DatasetEnv(habitat.RLEnv):
             self.depth_same_scene), "rgb scene length doesn't match depth scene length"
 
         scene_dir = osp.join(self.generate_dataset_output_dir, self.scene_ids)
-        if os.path.exists(scene_dir):
-            shutil.rmtree(scene_dir)
+        # if os.path.exists(scene_dir):
+        #     shutil.rmtree(scene_dir)
 
         assert not os.makedirs(scene_dir, exist_ok=True), f'make dir [{scene_dir}] failed!'
+        assert os.path.exists(scene_dir), f'make dir [{scene_dir}] failed!'
+            
 
         rgb_dir = osp.join(scene_dir, 'rgb')
         depth_dir = osp.join(scene_dir, 'depth')
@@ -262,14 +264,14 @@ class DatasetEnv(habitat.RLEnv):
         grid_pose = (pose - self.init_pose)
         translation = (grid_pose[:3])*100 / map_size
 
-        return translation[1], translation[0]
+        return int(translation[1]), int(translation[0])
 
     def draw_trajectory(self, pose, color):
         y, x = self.turn_pose_to_grip_map(pose)
-        #         y_center, x_center = self.grip_map.shape[0] / 2, self.grip_map.shape[1] / 2
-        #
-        #         y = int(y + y_center)
-        #         x = int(x + x_center)
+        y_center, x_center = self.grip_map.shape[0] / 2, self.grip_map.shape[1] / 2
+
+        y = int(y + y_center)
+        x = int(x + x_center)
         #         # print(y, x)
         #
         #         # self.grip_map[y, x] = color
@@ -324,10 +326,11 @@ class DatasetEnv(habitat.RLEnv):
             rgb_seq = [obs['rgb']]
             depth_seq = [obs['depth']]
             self.init_pose = self.get_ros_coord_pose()
+            print("init pose: ", self.init_pose)
             self.last_pose = np.copy(self.init_pose)
 
             # 300 * 5 / 100 = 15 m
-            self.grip_map = np.zeros(shape=(400, 400, 3), dtype=np.uint8)
+            self.grip_map = (np.ones(shape=(400, 400, 3))*255).astype(np.uint8)
             # bgr
             # gt 是红色, pred 是蓝色
             gt_color = (0, 0, 255)
@@ -369,9 +372,9 @@ class DatasetEnv(habitat.RLEnv):
                 best_action_tensor = torch.tensor(best_action).long().unsqueeze(0).to(device)
                 collision_tensor = torch.tensor(collision).long().unsqueeze(0).to(device)
 
-                pose_nig_est, disp_est, depth_uncer_est = model(rgb_input, best_action_tensor, collision_tensor)
+                out = model(rgb_input, best_action_tensor, collision_tensor)
 
-                delta = pose_nig_est['mu'].cpu().detach().numpy().squeeze()
+                delta = out['p_delta'].cpu().detach().numpy().squeeze()
                 self.get_pose_from_delta(delta)
 
                 trajectory_error += np.abs(self.last_pose - gt_pose)

@@ -1,0 +1,24 @@
+Actions Distribution:
+move_forward: 3338
+turn_left: 1453
+turn_right: 1209
+
+Screen Distribution:
+Greigsville:
+    move_forward: 1057
+    turn_left: 520
+    turn_right: 423
+    all: 2000
+
+Mosquito:
+    move_forward: 1143
+    turn_left: 450
+    turn_right: 407
+    all: 2000
+
+Pablo:
+    move_forward: 1138
+    turn_left: 483
+    turn_right: 379
+    all: 2000
+

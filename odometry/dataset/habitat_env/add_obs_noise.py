@@ -9,7 +9,7 @@ class RGBNoise:
     def __call__(self, img_noiseless: np.array) -> np.array:
         return self.rgb_noise.apply(img_noiseless) 
         
-class DepthNoies:
+class DepthNoise:
     def __init__(self, noise_multiplier):
         self.depth_noise = RedwoodDepthNoiseModel(noise_multiplier=noise_multiplier)
     

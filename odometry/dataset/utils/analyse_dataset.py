@@ -36,9 +36,11 @@ def read_json_gz(datasets):
             scenes_name[i.split('\\')[-1].split('.')[0]] = len(data) - 1
     print(scenes_name)
 
-read_json_gz(train_datasets)
-read_json_gz(val_datasets)
-read_json_gz(val_mini_datasets)
+
+if __name__ == "__main__":
+    read_json_gz(train_datasets)
+    read_json_gz(val_datasets)
+    read_json_gz(val_mini_datasets)
 
 
 '''

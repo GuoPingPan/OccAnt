@@ -268,7 +268,7 @@ class Mapper(nn.Module):
             mt_1 = mt_1 * masks.view(-1, 1, 1, 1)
         with torch.no_grad():
             mt, pre_g = self._register_map(mt_1, outputs["pt"], outputs["xt_hat"]) # 根据当前位姿更新全局地图
-            if "uncer_pt" in outputs:
+            if "uncer_pt" in outputs and self.config.create_global_map:
                 uncer_mt_1 = x["uncer_map_at_t_1"]
                 if masks is not None:
                     uncer_mt_1 = uncer_mt_1 * masks.view(-1, 1, 1, 1)

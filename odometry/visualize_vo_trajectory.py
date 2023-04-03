@@ -9,25 +9,32 @@ os.environ['HABITAT_SIM_LOG'] = "quiet"
 os.environ['MAGNUM_LOG'] = "quiet"
 sys.path.append('/home/hello/pgp_eai/easan')
 
-from habitat.config import read_write, get_config
-from habitat.config.default_structured_configs import CollisionsMeasurementConfig
+from habitat.config import get_config
 
-from OccAnt.odometry.models.vo import VoNet
-from dataset.dataset_env import Dataset_Env
+from models.vo import VoNet
+from dataset.habitat_env.env import DatasetEnv
 from arguments import get_args
 
-absolute_path_prefix = os.getcwd()
+absolute_path_prefix = os.getcwd() + '/../'
 
 
 def init_model(args):
     model = VoNet(num_layers=args.num_layers,
                         frame_width=args.frame_width,
                         frame_height=args.frame_height,
+                        decoder_type=args.decoder_type,
+                        split_action=args.split_action,
                         after_compression_flat_size=args.after_compression_flat_size,
-                        hidden_size=args.hidden_size,
                         p_dropout=args.p_dropout,
+                        use_dropout=args.use_dropout,
                         num_input_images=args.num_input_images,
                         pose_type=args.pose_type,
+                        action_space=args.action_space,
+                        emb_layers=args.emb_layers,
+                        hidden_size=args.hidden_size,
+                        use_act_embedding=args.use_act_embedding,
+                        use_collision_embedding=args.use_collision_embedding,
+                        embedding_size=args.embedding_size,
                         pretrained=args.en_pre,
                         use_group_norm=args.use_group_norm)
 
@@ -44,23 +51,22 @@ def init_model(args):
 
 
 def init_env(args):
-    config = get_config(config_path=args.config)
+    config = get_config(args.config)
     scenes = ['Greigsville']
 
-    with read_write(config):
-        config.habitat.dataset.split = args.split
-        config.habitat.dataset.content_scenes = scenes
-        config.habitat.environment.max_episode_steps = args.max_episode_length
+    config.defrost()
+    config.DATASET.SPLIT = args.split
+    config.DATASET.CONTENT_SCENES = scenes
+    config.DATASET.MAX_SCENE_REPEAT_STEPS = args.max_episode_length
+            
+    # add absoulte path
+    config.DATASET.DATA_PATH = absolute_path_prefix + config.DATASET.DATA_PATH
+    config.DATASET.SCENES_DIR = absolute_path_prefix + config.DATASET.SCENES_DIR
+    config.ENVIRONMENT.ITERATOR_OPTIONS.MAX_SCENE_REPEAT_EPISODES = args.episodes_per_scene
 
-        # add absoulte path
-        config.habitat.dataset.data_path = osp.join(absolute_path_prefix, config.habitat.dataset.data_path)
-        config.habitat.dataset.scenes_dir = osp.join(absolute_path_prefix, config.habitat.dataset.scenes_dir)
-        config.habitat.environment.iterator_options.max_scene_repeat_episodes = args.episodes_per_scene
+    config.freeze()
 
-        if not args.no_collision:
-            config.habitat.task.measurements.collision = CollisionsMeasurementConfig()
-
-    env = Dataset_Env(args, 0, config_env=config)
+    env = DatasetEnv(args, 0, config_env=config)
 
     return env
 

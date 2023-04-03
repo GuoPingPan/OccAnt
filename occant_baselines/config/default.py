@@ -40,7 +40,7 @@ _C.NUM_EPISODES = 20000
 _C.T_EXP = 1000
 _C.LOG_FILE = "train.log"
 _C.SAVE_STATISTICS_FLAG = False
-_C.CHECKPOINT_INTERVAL = 30
+_C.CHECKPOINT_INTERVAL = 10
 # PointNav specific config 
 _C.T_MAX = 500 # PointNav 最长只能走 500 步
 # -----------------------------------------------------------------------------
@@ -127,7 +127,6 @@ _C.RL.ANS.MAPPER.pose_predictor_inputs = ["ego_map"]
 _C.RL.ANS.MAPPER.n_pose_layers = 1
 _C.RL.ANS.MAPPER.n_ensemble_layers = 1
 _C.RL.ANS.MAPPER.ignore_pose_estimator = False
-_C.RL.ANS.MAPPER.use_uncer = False  
 _C.RL.ANS.MAPPER.label_id = "ego_map_gt_anticipated"
 _C.RL.ANS.MAPPER.use_data_parallel = False # train：True，test：False
 _C.RL.ANS.MAPPER.gpu_ids = []  # Set the GPUs for data parallel if necessary
@@ -140,6 +139,9 @@ _C.RL.ANS.MAPPER.NORMALIZATION.img_mean = [0.485, 0.456, 0.406]
 _C.RL.ANS.MAPPER.NORMALIZATION.img_std = [0.229, 0.224, 0.225]
 # Image scaling
 _C.RL.ANS.MAPPER.image_scale_hw = [128, 128]
+
+_C.RL.ANS.MAPPER.create_global_map = False
+_C.RL.ANS.MAPPER.use_uncer = False  
 
 # =============================================================================
 # Occupancy anticipator
@@ -199,9 +201,11 @@ _C.RL.ANS.OCCUPANCY_ANTICIPATOR.EGO_PROJECTION.K = 1.0
 # =============================================================================
 _C.RL.ANS.GLOBAL_POLICY = CN()
 _C.RL.ANS.GLOBAL_POLICY.map_size = 240  # global policy input size G
-_C.RL.ANS.GLOBAL_POLICY.use_uncer = False  
 _C.RL.ANS.GLOBAL_POLICY.use_data_parallel = False  
 _C.RL.ANS.GLOBAL_POLICY.gpu_ids = [] 
+
+_C.RL.ANS.GLOBAL_POLICY.use_uncer = False  
+
 # =============================================================================
 # Local policy
 # =============================================================================

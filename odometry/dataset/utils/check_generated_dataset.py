@@ -37,5 +37,6 @@ def check_dataset():
         print(f"[Warning] dataset wrong nums: {len(left)}, they are {left}")
         print("\n")
 
-check_dataset()
+if __name__ == "__main__":
+    check_dataset()
 

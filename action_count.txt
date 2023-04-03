@@ -1,0 +1,439 @@
+Actions Distribution:
+move_forward: 1155
+turn_left: 425
+turn_right: 420
+all: 2000
+
+Screen Distribution:
+Quantico:
+    move_forward: 1068
+    turn_left: 479
+    turn_right: 453
+    all: 2000
+
+Convoy:
+    move_forward: 915
+    turn_left: 561
+    turn_right: 524
+    all: 2000
+
+Hambleton:
+    move_forward: 1062
+    turn_left: 473
+    turn_right: 465
+    all: 2000
+
+Sasakwa:
+    move_forward: 1079
+    turn_left: 481
+    turn_right: 440
+    all: 2000
+
+Springhill:
+    move_forward: 1112
+    turn_left: 462
+    turn_right: 426
+    all: 2000
+
+Nimmons:
+    move_forward: 1146
+    turn_left: 435
+    turn_right: 419
+    all: 2000
+
+Nuevo:
+    move_forward: 1095
+    turn_left: 440
+    turn_right: 465
+    all: 2000
+
+Dryville:
+    move_forward: 1080
+    turn_left: 461
+    turn_right: 459
+    all: 2000
+
+Goffs:
+    move_forward: 1069
+    turn_left: 460
+    turn_right: 471
+    all: 2000
+
+Azusa:
+    move_forward: 1120
+    turn_left: 437
+    turn_right: 443
+    all: 2000
+
+Mosinee:
+    move_forward: 1086
+    turn_left: 456
+    turn_right: 458
+    all: 2000
+
+Hominy:
+    move_forward: 1089
+    turn_left: 478
+    turn_right: 433
+    all: 2000
+
+Maryhill:
+    move_forward: 1139
+    turn_left: 414
+    turn_right: 447
+    all: 2000
+
+Rancocas:
+    move_forward: 1221
+    turn_left: 386
+    turn_right: 393
+    all: 2000
+
+Sanctuary:
+    move_forward: 1207
+    turn_left: 372
+    turn_right: 421
+    all: 2000
+
+Nemacolin:
+    move_forward: 1166
+    turn_left: 416
+    turn_right: 418
+    all: 2000
+
+Reyno:
+    move_forward: 1206
+    turn_left: 415
+    turn_right: 379
+    all: 2000
+
+Dunmor:
+    move_forward: 1076
+    turn_left: 463
+    turn_right: 461
+    all: 2000
+
+Rosser:
+    move_forward: 1103
+    turn_left: 445
+    turn_right: 452
+    all: 2000
+
+Silas:
+    move_forward: 1048
+    turn_left: 478
+    turn_right: 474
+    all: 2000
+
+Oyens:
+    move_forward: 1111
+    turn_left: 437
+    turn_right: 452
+    all: 2000
+
+Roeville:
+    move_forward: 1226
+    turn_left: 377
+    turn_right: 397
+    all: 2000
+
+Anaheim:
+    move_forward: 1157
+    turn_left: 427
+    turn_right: 416
+    all: 2000
+
+Spotswood:
+    move_forward: 1097
+    turn_left: 456
+    turn_right: 447
+    all: 2000
+
+Haxtun:
+    move_forward: 1120
+    turn_left: 425
+    turn_right: 455
+    all: 2000
+
+Annawan:
+    move_forward: 1057
+    turn_left: 489
+    turn_right: 454
+    all: 2000
+
+Kerrtown:
+    move_forward: 1069
+    turn_left: 443
+    turn_right: 488
+    all: 2000
+
+Parole:
+    move_forward: 1043
+    turn_left: 463
+    turn_right: 494
+    all: 2000
+
+Bolton:
+    move_forward: 1099
+    turn_left: 477
+    turn_right: 424
+    all: 2000
+
+Micanopy:
+    move_forward: 1096
+    turn_left: 458
+    turn_right: 446
+    all: 2000
+
+Capistrano:
+    move_forward: 1120
+    turn_left: 463
+    turn_right: 417
+    all: 2000
+
+Brevort:
+    move_forward: 1124
+    turn_left: 439
+    turn_right: 437
+    all: 2000
+
+Pettigrew:
+    move_forward: 1181
+    turn_left: 404
+    turn_right: 415
+    all: 2000
+
+Spencerville:
+    move_forward: 1151
+    turn_left: 425
+    turn_right: 424
+    all: 2000
+
+Bowlus:
+    move_forward: 1198
+    turn_left: 398
+    turn_right: 404
+    all: 2000
+
+Sodaville:
+    move_forward: 1187
+    turn_left: 431
+    turn_right: 382
+    all: 2000
+
+Mobridge:
+    move_forward: 1125
+    turn_left: 458
+    turn_right: 417
+    all: 2000
+
+Sumas:
+    move_forward: 1171
+    turn_left: 433
+    turn_right: 396
+    all: 2000
+
+Hainesburg:
+    move_forward: 1136
+    turn_left: 435
+    turn_right: 429
+    all: 2000
+
+Crandon:
+    move_forward: 1156
+    turn_left: 428
+    turn_right: 416
+    all: 2000
+
+Woonsocket:
+    move_forward: 1116
+    turn_left: 464
+    turn_right: 420
+    all: 2000
+
+Albertville:
+    move_forward: 1082
+    turn_left: 450
+    turn_right: 468
+    all: 2000
+
+Beach:
+    move_forward: 1125
+    turn_left: 436
+    turn_right: 439
+    all: 2000
+
+Pleasant:
+    move_forward: 1162
+    turn_left: 438
+    turn_right: 400
+    all: 2000
+
+Adrian:
+    move_forward: 1051
+    turn_left: 488
+    turn_right: 461
+    all: 2000
+
+Eagerville:
+    move_forward: 1112
+    turn_left: 455
+    turn_right: 433
+    all: 2000
+
+Mesic:
+    move_forward: 1082
+    turn_left: 455
+    turn_right: 463
+    all: 2000
+
+Andover:
+    move_forward: 1150
+    turn_left: 406
+    turn_right: 444
+    all: 2000
+
+Roxboro:
+    move_forward: 1168
+    turn_left: 425
+    turn_right: 407
+    all: 2000
+
+Mifflintown:
+    move_forward: 1073
+    turn_left: 463
+    turn_right: 464
+    all: 2000
+
+Monson:
+    move_forward: 1083
+    turn_left: 474
+    turn_right: 443
+    all: 2000
+
+Placida:
+    move_forward: 1156
+    turn_left: 404
+    turn_right: 440
+    all: 2000
+
+Shelbiana:
+    move_forward: 1068
+    turn_left: 485
+    turn_right: 447
+    all: 2000
+
+Roane:
+    move_forward: 1161
+    turn_left: 440
+    turn_right: 399
+    all: 2000
+
+Superior:
+    move_forward: 1223
+    turn_left: 386
+    turn_right: 391
+    all: 2000
+
+Ballou:
+    move_forward: 1202
+    turn_left: 398
+    turn_right: 400
+    all: 2000
+
+Hometown:
+    move_forward: 1156
+    turn_left: 431
+    turn_right: 413
+    all: 2000
+
+Applewold:
+    move_forward: 1174
+    turn_left: 418
+    turn_right: 408
+    all: 2000
+
+Angiola:
+    move_forward: 861
+    turn_left: 583
+    turn_right: 556
+    all: 2000
+
+Nicut:
+    move_forward: 1119
+    turn_left: 452
+    turn_right: 429
+    all: 2000
+
+Stokes:
+    move_forward: 1041
+    turn_left: 492
+    turn_right: 467
+    all: 2000
+
+Hillsdale:
+    move_forward: 1063
+    turn_left: 440
+    turn_right: 497
+    all: 2000
+
+Cooperstown:
+    move_forward: 1011
+    turn_left: 525
+    turn_right: 464
+    all: 2000
+
+Delton:
+    move_forward: 1114
+    turn_left: 439
+    turn_right: 447
+    all: 2000
+
+Arkansaw:
+    move_forward: 1108
+    turn_left: 468
+    turn_right: 424
+    all: 2000
+
+Seward:
+    move_forward: 1150
+    turn_left: 429
+    turn_right: 421
+    all: 2000
+
+Stilwell:
+    move_forward: 1205
+    turn_left: 411
+    turn_right: 384
+    all: 2000
+
+Avonia:
+    move_forward: 1109
+    turn_left: 452
+    turn_right: 439
+    all: 2000
+
+Stanleyville:
+    move_forward: 1130
+    turn_left: 451
+    turn_right: 419
+    all: 2000
+
+Soldier:
+    move_forward: 1189
+    turn_left: 422
+    turn_right: 389
+    all: 2000
+
+Colebrook:
+    move_forward: 1182
+    turn_left: 394
+    turn_right: 424
+    all: 2000
+
+Sawpit:
+    move_forward: 1155
+    turn_left: 425
+    turn_right: 420
+    all: 2000
+

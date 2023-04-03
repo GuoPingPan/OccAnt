@@ -1,0 +1,43 @@
+BASE_TASK_CONFIG_PATH: "configs/exploration/gibson_evaluate_noise_free.yaml"
+TRAINER_NAME: "occant_exp"
+ENV_NAME: "ExpRLEnv"
+SIMULATOR_GPU_ID: 0
+SIMULATOR_GPU_IDS: [0]
+TORCH_GPU_ID: 0
+VIDEO_OPTION: ["disk", "tensorboard"]
+TENSORBOARD_DIR: "trained_models/occant_depth_nig_sigmoid/val_noise_free_ep0/tb"
+VIDEO_DIR: "trained_models/occant_depth_nig_sigmoid/val_noise_free_ep0/video_dir"
+# load pretrained in evaluation
+EVAL_CKPT_PATH_DIR: "trained_models/occant_depth_nig_sigmoid/checkpoints/ckpt.7.pth"
+NUM_PROCESSES: 1
+SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR"]
+# 用于保存模型和继续训练
+CHECKPOINT_FOLDER: "trained_models/occant_depth_nig_sigmoid/pretrained" 
+NUM_EPISODES: 10000
+T_EXP: 500 # max exploration step
+
+EVAL:
+  USE_CKPT_CONFIG: False
+
+RL:
+  ANS:
+    goal_success_radius: 0.2 # 2 x agent radius
+    planning_step: 0.25
+    image_scale_hw: [128, 128]
+    MAPPER:
+      map_size: 65
+      registration_type: "moving_average"
+      ignore_pose_estimator: True
+      use_data_parallel: True
+      gpu_ids: [0]
+      use_uncer: True
+    GLOBAL_POLICY:
+      use_uncer: True
+    OCCUPANCY_ANTICIPATOR:
+      type: 'occant_depth_nig'
+      GP_ANTICIPATION:
+        wall_fov: 120.0
+        resnet_type: 'resnet18'
+        unet_nsf: 64
+    LOCAL_POLICY:
+      use_heuristic_policy: True # noise_free use heuristic_policy to plan

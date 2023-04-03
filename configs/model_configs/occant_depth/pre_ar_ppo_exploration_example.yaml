@@ -1,17 +1,17 @@
 BASE_TASK_CONFIG_PATH: "configs/exploration/gibson_train.yaml"
 TRAINER_NAME: "occant_exp"
 ENV_NAME: "ExpRLEnv"
-SIMULATOR_GPU_ID: 1
-SIMULATOR_GPU_IDS: [1, 2, 3, 4, 5, 6, 7]
+SIMULATOR_GPU_ID: 2
+SIMULATOR_GPU_IDS: [2, 3]
 TORCH_GPU_ID: 0
 VIDEO_OPTION: ["disk", "tensorboard"]
-TENSORBOARD_DIR: "trained_models/occant_depth/run_01/tb"
-VIDEO_DIR: "trained_models/occant_depth/run_01/video_dir"
+TENSORBOARD_DIR: "trained_models/occant_depth/train_0/tb"
+VIDEO_DIR: "trained_models/occant_depth/train_0/video_dir"
 TEST_EPISODE_COUNT: 2
-EVAL_CKPT_PATH_DIR: "trained_models/occant_depth/run_01/checkpoints"
+EVAL_CKPT_PATH_DIR: "trained_models/occant_depth/train_0/checkpoints"
 NUM_PROCESSES: 36
 SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR"]
-CHECKPOINT_FOLDER: "trained_models/occant_depth/run_01/checkpoints"
+CHECKPOINT_FOLDER: "trained_models/occant_depth/train_0/checkpoints"
 NUM_EPISODES: 10000
 T_EXP: 1000
 

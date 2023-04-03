@@ -16,7 +16,7 @@ def rot_and_trans_nig_uncer(pred):
     trans_uncer = uncer[..., :-1].cpu()
     rot_uncer = uncer[..., -1].cpu()
 
-    return torch.mean(trans_uncer, dim=-1), torch.mean(rot_uncer, dim=-1)
+    return torch.mean(trans_uncer, dim=0), torch.mean(rot_uncer, dim=0)
 
 def rot_and_trans_laplacian_uncer(pred):
     sigma = pred['p_sigma'].clone().detach()

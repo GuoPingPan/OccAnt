@@ -16,6 +16,7 @@ from occant_baselines.config.default import get_config
 import os
 os.environ['MAGNUM_LOG'] = "quiet"
 os.environ['GLOG_minloglevel'] = "2"
+os.environ['KMP_WARNINGS'] = "off"
 
 import warnings
 warnings.filterwarnings("ignore")

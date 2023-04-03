@@ -1,0 +1,90 @@
+Actions Distribution:
+move_forward: 15255
+turn_left: 6447
+turn_right: 6298
+
+Screen Distribution:
+Greigsville:
+    move_forward: 1088
+    turn_left: 497
+    turn_right: 415
+    all: 2000
+
+Mosquito:
+    move_forward: 1138
+    turn_left: 439
+    turn_right: 423
+    all: 2000
+
+Swormville:
+    move_forward: 1074
+    turn_left: 485
+    turn_right: 441
+    all: 2000
+
+Ribera:
+    move_forward: 1020
+    turn_left: 497
+    turn_right: 483
+    all: 2000
+
+Cantwell:
+    move_forward: 1122
+    turn_left: 441
+    turn_right: 437
+    all: 2000
+
+Sisters:
+    move_forward: 1087
+    turn_left: 477
+    turn_right: 436
+    all: 2000
+
+Eastville:
+    move_forward: 1143
+    turn_left: 420
+    turn_right: 437
+    all: 2000
+
+Scioto:
+    move_forward: 1147
+    turn_left: 413
+    turn_right: 440
+    all: 2000
+
+Pablo:
+    move_forward: 1129
+    turn_left: 453
+    turn_right: 418
+    all: 2000
+
+Elmira:
+    move_forward: 1027
+    turn_left: 499
+    turn_right: 474
+    all: 2000
+
+Sands:
+    move_forward: 1090
+    turn_left: 424
+    turn_right: 486
+    all: 2000
+
+Denmark:
+    move_forward: 1136
+    turn_left: 429
+    turn_right: 435
+    all: 2000
+
+Eudora:
+    move_forward: 1039
+    turn_left: 465
+    turn_right: 496
+    all: 2000
+
+Edgemere:
+    move_forward: 1015
+    turn_left: 508
+    turn_right: 477
+    all: 2000
+

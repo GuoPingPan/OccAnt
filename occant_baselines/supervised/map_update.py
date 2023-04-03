@@ -57,7 +57,7 @@ def nig_mapping_loss_fn(pt_hat, pt_gt, nig_params):
 def pose_loss_fn(pose_hat, pose_gt):
     trans_loss = F.smooth_l1_loss(pose_hat[:, :2], pose_gt[:, :2])
     rot_loss = F.smooth_l1_loss(pose_hat[:, 2], pose_gt[:, 2])
-    pose_loss = 0.5 * (trans_loss + 5 * rot_loss)
+    pose_loss = 0.5 * (trans_loss + rot_loss)
 
     return pose_loss, trans_loss, rot_loss
 
@@ -217,6 +217,7 @@ def map_update_fn(ps_args):
         # print(pt_hat.shape, pt_gt.shape)
         # Forward pass
         mapper_inputs = observations
+        # print(mapper_inputs)
         mapper_outputs = mapper(mapper_inputs, method_name="predict_deltas")
         pt_hat = mapper_outputs["pt"]
 

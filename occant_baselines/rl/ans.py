@@ -323,7 +323,8 @@ class ActiveNeuralSLAMBase(ABC):
         pose_hat_at_t_1 = prev_state_estimates["pose_estimates"]  # (bs, 3)
         map_at_t_1 = prev_state_estimates["map_states"]  # (bs, 2, M, M)
 
-        uncer_map_at_t_1 = prev_state_estimates["uncer_map_states"] # only use in nig
+        if self.config.GLOBAL_POLICY.use_uncer:
+            uncer_map_at_t_1 = prev_state_estimates["uncer_map_states"] # only use in nig
         pose_gt_at_t_1 = prev_observations.get("pose_gt", None)
         pose_gt_at_t = observations.get("pose_gt", None)
 
@@ -336,7 +337,7 @@ class ActiveNeuralSLAMBase(ABC):
             "pose_gt_at_t_1": pose_gt_at_t_1,
             "pose_hat_at_t_1": pose_hat_at_t_1,
             "map_at_t_1": map_at_t_1,
-            "uncer_map_at_t_1": uncer_map_at_t_1, # only use in nig
+            # "uncer_map_at_t_1": uncer_map_at_t_1, # only use in nig
             "rgb_at_t": rgb_at_t,
             "depth_at_t": depth_at_t,
             "ego_map_gt_at_t": ego_map_gt_at_t,
@@ -345,6 +346,8 @@ class ActiveNeuralSLAMBase(ABC):
             "pose_gt_at_t": pose_gt_at_t,
             "action_at_t_1": action_at_t_1,
         }
+        if self.config.GLOBAL_POLICY.use_uncer:
+            mapper_inputs["uncer_map_at_t_1"] = prev_state_estimates["uncer_map_states"] # only use in nig
         return mapper_inputs
 
     def _compute_plans(
@@ -512,8 +515,11 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             "sample_random_explored_timer": None,
             # Global map reward states
             "prev_map_states": None,
-            "prev_uncer_map_states": None, # todo
         }
+        if self.config.GLOBAL_POLICY.use_uncer:
+            self.states["prev_uncer_map_states"]: None # todo
+
+        
 
     def act(
         self,
@@ -525,7 +531,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
         deterministic=False,
     ):
         
-        use_uncer = self.config.MAPPER.use_uncer
+        use_uncer = self.config.GLOBAL_POLICY.use_uncer
         # ============================ Set useful variables ===========================
         ep_step = ep_time[0].item()
         M = prev_state_estimates["map_states"].shape[2]
@@ -540,6 +546,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
         mapper_outputs = self.mapper(mapper_inputs)
         global_map = mapper_outputs["mt"]
 
+        # 如果全局不需要就不用加上不确定性地图了
         if use_uncer:
             uncer_global_map = mapper_outputs["uncer_mt"] 
         else:
@@ -558,7 +565,7 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
             prev_dist2localgoal = self.states["curr_dist2localgoal"]
             curr_dist2localgoal = self._compute_dist2localgoal(
                 global_map, map_xy, self.states["curr_local_goals"], 
-                uncer_global_map=uncer_global_map
+                uncer_global_map=uncer_global_map # 如果不设置则为空
             )
             prev_map_position = self.states["curr_map_position"]
             prev_step_size = (
@@ -751,15 +758,24 @@ class ActiveNeuralSLAMExplorer(ActiveNeuralSLAMBase):
         else:
             gt_actions = torch.zeros_like(local_action)
 
+        # print("mapper_outputs.shape: ", mapper_outputs["uncer_pt"].shape, mapper_outputs['pt'].shape)
+
         # ============================== Create output dicts ==========================
         state_estimates = {
             "recurrent_hidden_states": recurrent_hidden_states,
             "map_states": mapper_outputs["mt"],
-            "uncer_map_states": uncer_global_map, # todo None if no_use
-            "ego_anticipate_map_pre": mapper_outputs['pt'],
+            "ego_anticipate_map_pre": mapper_outputs['pt'], # todo
             "visited_states": visited_states,
             "pose_estimates": global_pose,
         }
+
+        # 如果采用不确定性才输出地图
+        if use_uncer:
+            state_estimates["uncer_map_states"] = uncer_global_map # todo None if no_use
+        if self.config.MAPPER.use_uncer:
+            state_estimates["ego_uncer_map_pre"]: torch.concat([mapper_outputs["uncer_pt"], \
+                                    torch.index_select(mapper_outputs['pt'],1,torch.tensor([1]).to(mapper_outputs['pt'].device))], dim=1) # todo
+
         local_policy_outputs = {
             "values": local_value,
             "actions": local_action,

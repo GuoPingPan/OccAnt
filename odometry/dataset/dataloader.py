@@ -33,9 +33,6 @@ class VoDataset(Dataset):
             self.pose_delta += pose_delta
             self.collisions += collisions
 
-        if add_obs_noise:
-            self.add_rgb_noise = RGBNoise(intensity_constant=0.1)
-
 
     def load_img(self, scene, prefix):
         '''
@@ -43,7 +40,10 @@ class VoDataset(Dataset):
             img_path：List[str]
         '''
         if prefix == '.jpg':
-            img_path = glob(osp.join(scene, 'rgb/*.jpg'))
+            if self.add_obs_noise:
+                img_path = glob(osp.join(scene, 'rgb_noise/*.jpg'))
+            else:
+                img_path = glob(osp.join(scene, 'rgb/*.jpg'))
         elif prefix == '.npy':
             img_path = glob(osp.join(scene, 'depth/*.npy'))
         else:
@@ -62,9 +62,9 @@ class VoDataset(Dataset):
         with gzip.open(osp.join(scene, 'pose.json.gz'), 'rt') as f:
             data = json.load(f)
             for item in data:
-                action_ids.append(item['action_id'])
-                pose_delta.append(item['pose_delta'])
-                collisions.append(item['collision'])
+                action_ids.append(np.array(item['action_id']))
+                pose_delta.append(np.array(item['pose_delta']))
+                collisions.append(np.array(item['collision']))
         return action_ids, pose_delta, collisions
 
     def __len__(self):
@@ -76,17 +76,13 @@ class VoDataset(Dataset):
         rgb_t = cv2.imread(self.rgb_imgs[2 * idx + 1], -1)
         rgb_t_1 = cv2.cvtColor(rgb_t_1, cv2.COLOR_BGR2RGB)
         rgb_t = cv2.cvtColor(rgb_t, cv2.COLOR_BGR2RGB)
-        if self.add_obs_noise:
-            rgb_t_1 = self.add_rgb_noise(rgb_t_1)
-            rgb_t = self.add_rgb_noise(rgb_t)
-        # print(type(rgb_t_1), rgb_t_1.shape)
         rgb_t_1 = self.transform(Image.fromarray(rgb_t_1))
         rgb_t = self.transform(Image.fromarray(rgb_t))
         depth_t_1 = torch.from_numpy(np.load(self.depth_imgs[2 * idx])).permute(2, 0, 1) * 9.9 + 0.1
         depth_t = torch.from_numpy(np.load(self.depth_imgs[2 * idx + 1])).permute(2, 0, 1) * 9.9 + 0.1
-        collision = torch.tensor(self.collisions[idx]).long()
-        action = torch.tensor(self.action_ids[idx]).long()
-        pose_delta = torch.tensor(self.pose_delta[idx])
+        collision = torch.from_numpy(self.collisions[idx]).long()
+        action = torch.from_numpy(self.action_ids[idx]).long()
+        pose_delta = torch.from_numpy(self.pose_delta[idx])
         data['rgb_t_1'] = rgb_t_1
         data['rgb_t'] = rgb_t
         data['depth_t_1'] = depth_t_1

@@ -5,12 +5,12 @@ SIMULATOR_GPU_ID: 0
 SIMULATOR_GPU_IDS: [0]
 TORCH_GPU_ID: 0
 VIDEO_OPTION: ["disk", "tensorboard"]
-TENSORBOARD_DIR: "trained_models/noisy_origin/eval_0/tb"
-VIDEO_DIR: "trained_models/noisy_origin/eval_0/video_dir"
-EVAL_CKPT_PATH_DIR: "trained_models/noisy_origin/checkpoints/ckpt.11.pth" # 给定模型就对一个模型进行评估，如果是一个模型路径就对所有模型进行评估
+TENSORBOARD_DIR: "trained_models/occant_depth_nig_sigmoid/tb"
+VIDEO_DIR: "trained_models/occant_depth_nig_sigmoid/video_dir"
+EVAL_CKPT_PATH_DIR: "trained_models/occant_depth_nig_sigmoid/checkpoints/ckpt.7.pth" # 给定模型就对一个模型进行评估，如果是一个模型路径就对所有模型进行评估
 NUM_PROCESSES: 1
 SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR"]
-CHECKPOINT_FOLDER: "trained_models/noisy_origin/eval_0/checkpoints"
+CHECKPOINT_FOLDER: "trained_models/occant_depth_nig_sigmoid/checkpoints"
 NUM_EPISODES: 10000
 T_EXP: 500
 
@@ -28,8 +28,11 @@ RL:
       ignore_pose_estimator: False
       use_data_parallel: True
       gpu_ids: [0]
+      use_uncer: True
+    GLOBAL_POLICY:
+      use_uncer: True
     OCCUPANCY_ANTICIPATOR:
-      type: 'occant_depth'
+      type: 'occant_depth_nig'
       GP_ANTICIPATION:
         wall_fov: 120.0
         resnet_type: 'resnet18'

@@ -301,7 +301,7 @@ class OccAntDepthNIG(BaseModel):
         # unet_feat_size = nsf * 8
         self.gp_depth_proj_encoder = unet_encoder
         self.gp_decoder = unet_decoder
-        self.evidence = nn.Softplus()
+        self.evidence = nn.Softplus() # todo
 
     def _normalize_decoder_output(self, x):
         
@@ -309,6 +309,7 @@ class OccAntDepthNIG(BaseModel):
         v = self.evidence(logv)
         alpha = self.evidence(logalpha) + 1
         beta = self.evidence(logbeta)
+        mu = self.normalize_channel_0(mu)
         explored = self.normalize_channel_1(explored)
         uncer_map = beta / (v*(alpha-1))
         return torch.concat([mu, explored], dim=1), torch.concat([v, alpha, beta], dim=1), uncer_map

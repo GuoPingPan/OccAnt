@@ -495,9 +495,9 @@ def convert_gt2channel_to_gtrgb(gts):
 
     gt_imgs = np.stack(
         [
-            0.0 * occ_mask + 0.0 * free_mask + 255.0 * unk_mask,
-            0.0 * occ_mask + 255.0 * free_mask + 255.0 * unk_mask,
-            255.0 * occ_mask + 0.0 * free_mask + 255.0 * unk_mask,
+            0.0 * occ_mask + 0.0 * free_mask + 255.0 * unk_mask, # r  没有探索到的地方就是白色。free的就是绿色，occ就是蓝色
+            0.0 * occ_mask + 255.0 * free_mask + 255.0 * unk_mask, # g  
+            255.0 * occ_mask + 0.0 * free_mask + 255.0 * unk_mask,  # b
         ],
         axis=2,
     ).astype(
